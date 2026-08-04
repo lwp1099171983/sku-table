@@ -15,11 +15,11 @@
 当前确定的技术架构：
 
 ```text
-React/Vite
-    ↓
-EdgeOne Pages（前端构建与静态托管）
-    ↓ HTTPS
-MemFire Cloud（Auth、PostgreSQL、API、RLS）
+腾讯云轻量应用服务器
+    └─ Docker Compose
+        ├─ Nginx（React/Vite 静态文件、HTTPS、反向代理）
+        ├─ Hono.js/Node.js API
+        └─ PostgreSQL（仅内部网络访问）
 ```
 
 文档维护约定：需求变更先更新需求文档；技术方案变更同步更新技术选型文档；任务状态和排期更新任务拆分文档。

@@ -1,14 +1,14 @@
-# 数据库基线（备用方案）
+# 数据库基线（历史迁移备用材料）
 
-当前 v1 主方案已切换为腾讯云轻量应用服务器 + Node.js API + PostgreSQL。本目录仅保留 MemFire/Supabase 兼容迁移材料，主流程不再依赖它。
+当前 v1 主方案为腾讯云轻量应用服务器 + Hono.js/Node.js API + PostgreSQL。本目录仅保留历史托管数据库兼容迁移材料，主流程不依赖本目录。
 
 ## 执行迁移
 
-在 MemFire Cloud 的 SQL Editor 中执行 `migrations/202608040001_initial_security_baseline.sql`。MemFire 当前按入门套餐收费，约 30 元/月起；购买前请确认数据库容量、API 调用额度、连接数和批量导入限制。执行完成后，再执行 `tests/202608040001_security_baseline.sql` 做结构、RLS 和字段权限检查。
+仅在验证历史托管数据库兼容方案时，在对应平台的 SQL Editor 中执行 `migrations/202608040001_initial_security_baseline.sql`，再执行 `tests/202608040001_security_baseline.sql` 做结构、RLS 和字段权限检查。生产部署、认证和数据库访问以腾讯云轻量应用服务器上的 Docker Compose 方案为准。
 
 ## 开通团队成员
 
-v1 不开放公开注册。负责人先在 MemFire Auth 中创建邮箱账号，再把 Auth 用户 UUID 和邮箱写入 `app_users`：
+历史兼容方案不开放公开注册。负责人先在兼容认证服务中创建邮箱账号，再把认证用户 UUID 和邮箱写入 `app_users`：
 
 ```sql
 insert into public.app_users (auth_user_id, email, display_name, role)
