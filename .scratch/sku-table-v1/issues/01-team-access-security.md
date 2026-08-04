@@ -1,15 +1,16 @@
-# 01 — 服务器、PostgreSQL 与安全基线
+# 01 — Hono.js/Node.js 后端与数据库基础
 
-**What to build:** 建立腾讯云轻量应用服务器、Docker Compose、PostgreSQL 和基础安全基线，让数据库不暴露公网，并为后续 Node.js API 提供稳定的业务表和备份能力。
+**What to build:** 初始化 Hono.js + Node.js + TypeScript 后端项目，配置 PostgreSQL 连接和 Drizzle ORM，完成业务 schema、索引、约束和版本化迁移，为后续 Hono API 提供稳定的数据基础。
 
 **Blocked by:** None — can start immediately
 
 **Status:** ready-for-agent
 
-- [ ] 服务器使用 Ubuntu 24.04 LTS，起步配置和月均预算符合项目约束
-- [ ] Docker Compose 可以启动 PostgreSQL、Caddy 和 API 所需网络，数据库仅监听内部网络
-- [ ] 防火墙只开放 80、443 和受限制的 SSH 端口，公网无法连接 PostgreSQL
+- [ ] Hono.js 后端可以在 Node.js 上启动，TypeScript 编译和依赖 lockfile 检查通过
+- [ ] PostgreSQL 连接通过环境变量配置，使用连接池和参数化查询，连接失败时给出明确错误
+- [ ] `drizzle-orm` schema 与 PostgreSQL 表结构一致，`drizzle-kit` 可以生成并执行版本化迁移
 - [ ] 完成 `app_users`、`products`、`import_batches` 三张表、约束、索引和迁移脚本
-- [ ] `created_by`、`created_at`、`updated_at`、`batch_id` 等系统字段由服务端和数据库约束保护
-- [ ] 每日备份脚本可生成 PostgreSQL 备份，并验证备份文件可读取
+- [ ] `created_by`、`created_at`、`updated_at`、`batch_id` 等系统字段由 API 和数据库约束保护
+- [ ] 数据库密码、JWT 密钥和备份凭据通过环境变量或受限文件提供，不进入仓库和前端构建产物
+- [ ] 完成数据库连接、迁移和基础 schema 的自动化测试
 - [ ] v1 不开放删除、商品字段编辑和批次回滚

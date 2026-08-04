@@ -2,7 +2,7 @@
 
 **What to build:** 登录成员可以分页浏览团队商品，并按上传人筛选，列表展示商品核心字段和导入追溯信息，适用于几十万行数据规模。
 
-**Blocked by:** 01 — 服务器、PostgreSQL 与安全基线；02 — Node.js API 与受保护登录态
+**Blocked by:** 01 — Hono.js/Node.js 后端与数据库基础；02 — 认证、权限与 Hono API
 
 **Status:** ready-for-agent
 

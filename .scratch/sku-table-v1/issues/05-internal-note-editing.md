@@ -2,7 +2,7 @@
 
 **What to build:** 任意已登录团队成员可以在线编辑商品内部备注并保存；多人同时编辑同一条备注时采用最后写入覆盖，且编辑备注不会改变其他商品字段。
 
-**Blocked by:** 01 — 服务器、PostgreSQL 与安全基线；02 — Node.js API 与受保护登录态；04 — 商品列表与上传人筛选
+**Blocked by:** 01 — Hono.js/Node.js 后端与数据库基础；02 — 认证、权限与 Hono API；04 — 商品列表与上传人筛选
 
 **Status:** ready-for-agent
 
