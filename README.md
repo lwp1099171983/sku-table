@@ -23,7 +23,7 @@ pnpm typecheck       # 检查前后端类型
 cp infra/docker/.env.local.example infra/docker/.env.local
 ```
 
-有 Docker 时执行 `pnpm db:local:up`，数据库只映射到本机 `127.0.0.1:5432`，数据保存在 `postgres-local-data` 卷中。停止数据库执行 `pnpm db:local:down`，连接串为 `postgresql://sku_table:sku_table_local_password@localhost:5432/sku_table`。
+有 Docker 时执行 `pnpm db:local:up`，数据库只映射到本机 `127.0.0.1:5432`，数据保存在 `postgres-local-data` 卷中。停止数据库执行 `pnpm db:local:down`，连接串为 `postgresql://sku_table:sku_table_local_password@127.0.0.1:5432/sku_table`。
 
 本机直接安装 PostgreSQL 时，也可以使用相同的数据库名、用户、密码和连接串，API 配置放在 `apps/api/.env`。
 
