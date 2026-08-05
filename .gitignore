@@ -5,4 +5,5 @@ dist/
 .env
 .env.*
 !.env.example
+!infra/docker/.env.local.example
 *.log

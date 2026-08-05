@@ -1,4 +1,4 @@
-import type { ImportBatch, PageResult, Product, UserRole } from './type'
+import type { EmployeeWorkBatch, EmployeeWorkItem, ImportBatch, PageResult, Product, UserRole } from './type'
 
 export interface LoginRequestDto {
   email: string
@@ -49,4 +49,18 @@ export interface ApiErrorDto {
   code: string
   message: string
   details?: unknown
+}
+
+export interface EmployeeWorkListQueryDto {
+  page?: number
+  pageSize?: number
+  employeeName?: string
+  workDate?: string
+}
+
+export type EmployeeWorkListResponseDto = PageResult<EmployeeWorkItem>
+
+export interface EmployeeWorkImportResponseDto {
+  batch: EmployeeWorkBatch
+  importedRows: number
 }

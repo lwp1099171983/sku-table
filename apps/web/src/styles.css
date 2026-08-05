@@ -38,6 +38,15 @@ button, input { font: inherit; }
 .note-edit-icon { color: #a7b0bd; opacity: 0; transition: opacity .15s; }
 .note-cell:hover .note-edit-icon { opacity: 1; }
 .import-card { margin-top: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(30, 52, 75, .05); }
+.work-import-card { margin-bottom: 34px; padding: 24px; box-shadow: 0 10px 30px rgba(30, 52, 75, .05); }
+.section-heading { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+.section-heading .ant-typography { margin: 0; }
+.work-import-grid { display: grid; grid-template-columns: minmax(220px, 280px) minmax(180px, 220px); gap: 16px; margin: 20px 0; }
+.field-label { display: grid; gap: 7px; color: #506073; font-size: 13px; font-weight: 600; }
+.import-result { margin-top: 20px; }
+.records-section { margin-top: 12px; }
+.work-filter-bar { margin-bottom: 12px; }
+.table-pagination { display: flex; justify-content: flex-end; padding: 16px; border-top: 1px solid #e8edf2; }
 .import-submit { margin-top: 20px; }
 .progress-block { margin-top: 22px; }
 .login-page { min-height: 100vh; display: grid; grid-template-columns: minmax(360px, 1fr) minmax(460px, .92fr); background: #f4f6f8; }
@@ -71,4 +80,5 @@ button, input { font: inherit; }
   .page-heading { align-items: flex-start; margin-bottom: 22px; }
   .page-heading h1 { font-size: 28px; }
   .filter-bar { align-items: flex-start; flex-direction: column; }
+  .work-import-grid { grid-template-columns: 1fr; }
 }

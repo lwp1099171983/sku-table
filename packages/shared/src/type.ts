@@ -47,6 +47,31 @@ export interface ImportRowError {
   message: string
 }
 
+export interface EmployeeWorkBatch {
+  id: string
+  employeeName: string
+  employeeId: string | null
+  workDate: string
+  fileName: string
+  uploadedBy: string
+  totalRows: number
+  createdAt: string
+}
+
+export interface EmployeeWorkItem {
+  id: number
+  batchId: string
+  employeeName: string
+  workDate: string
+  seq: string | null
+  sku: string | null
+  platform: string | null
+  name: string
+  url: string | null
+  spec: string | null
+  price: string | null
+}
+
 export interface PageResult<T> {
   items: T[]
   page: number

@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthContextValue>(() => ({
     user,
     isLoading,
-    canImport: user?.role === 'owner' || user?.role === 'selector',
+    canImport: user?.role === 'owner',
     async login(email, password) {
       const response = await authService.login({ email, password })
       setUser(toAppUser(response.user))

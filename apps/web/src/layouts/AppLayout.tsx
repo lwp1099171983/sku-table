@@ -1,4 +1,4 @@
-import { CloudUploadOutlined, LogoutOutlined, TableOutlined, UserOutlined } from '@ant-design/icons'
+import { LogoutOutlined, ScheduleOutlined, UserOutlined } from '@ant-design/icons'
 import { Avatar, Button, Layout, Menu, Space, Typography } from 'antd'
 import { useMemo } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -7,14 +7,13 @@ import { useAuth } from './AuthContext'
 const { Header, Sider, Content } = Layout
 
 export function AppLayout() {
-  const { user, logout, canImport } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
   const menuItems = useMemo(() => [
-    { key: '/', icon: <TableOutlined />, label: '商品库' },
-    ...(canImport ? [{ key: '/imports', icon: <CloudUploadOutlined />, label: '导入数据' }] : []),
-  ], [canImport])
+    { key: '/', icon: <ScheduleOutlined />, label: '员工工作记录' },
+  ], [])
 
   return (
     <Layout className="app-layout">
@@ -33,7 +32,7 @@ export function AppLayout() {
       </Sider>
       <Layout>
         <Header className="app-header">
-          <Typography.Text className="header-context">团队商品资料库 / v1</Typography.Text>
+          <Typography.Text className="header-context">员工工作记录 / v1</Typography.Text>
           <Space size="middle">
             <Space size="small" className="user-chip">
               <Avatar size="small" icon={<UserOutlined />} />

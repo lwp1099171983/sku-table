@@ -13,7 +13,13 @@
     "build:api": "pnpm --filter @sku-table/api build",
     "typecheck": "pnpm typecheck:web && pnpm typecheck:api",
     "typecheck:web": "pnpm --filter @sku-table/web typecheck",
-    "typecheck:api": "pnpm --filter @sku-table/api typecheck"
+    "typecheck:api": "pnpm --filter @sku-table/api typecheck",
+    "db:migrate": "pnpm --filter @sku-table/api db:migrate",
+    "db:seed": "pnpm --filter @sku-table/api db:seed",
+    "db:local:up": "docker compose --env-file infra/docker/.env.local -f infra/docker/docker-compose.local.yml up -d",
+    "db:local:down": "docker compose --env-file infra/docker/.env.local -f infra/docker/docker-compose.local.yml down",
+    "db:local:logs": "docker compose --env-file infra/docker/.env.local -f infra/docker/docker-compose.local.yml logs -f postgres",
+    "db:local:psql": "docker compose --env-file infra/docker/.env.local -f infra/docker/docker-compose.local.yml exec postgres psql -U sku_table -d sku_table"
   },
   "devDependencies": {
     "typescript": "~5.8.3"
