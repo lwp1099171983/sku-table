@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { EmployeeWorkBatch, EmployeeWorkItem } from '@sku-table/shared'
+import { APP_COPY } from '../constants/app'
 import { useAuth } from '../layouts/AuthContext'
 import { employeeWorkService } from '../services/employeeWorkService'
 import './EmployeeWorkPage.css'
@@ -156,7 +157,7 @@ export function EmployeeWorkPage() {
       <div className="page-heading">
         <div>
           <Typography.Text className="eyebrow">EMPLOYEE WORK LOG</Typography.Text>
-          <Typography.Title level={1}>员工工作记录</Typography.Title>
+          <Typography.Title level={1}>{APP_COPY.employeeWork}</Typography.Title>
           <Typography.Paragraph type="secondary">老板上传员工每日采集的商品，按员工和日期追溯工作内容。</Typography.Paragraph>
         </div>
         <Space className="page-actions">

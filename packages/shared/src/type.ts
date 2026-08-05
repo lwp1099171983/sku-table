@@ -72,6 +72,42 @@ export interface EmployeeWorkItem {
   price: string | null
 }
 
+export interface OzonStatisticsBatch {
+  id: string
+  fileName: string
+  uploadedBy: string
+  totalRows: number
+  createdAt: string
+}
+
+export interface OzonProductPricing {
+  id: string
+  batchId: string | null
+  store: string | null
+  productName: string
+  supplierSku: string | null
+  purchasePrice: string | null
+  weightKg: string | null
+  localSku: string | null
+  nameAbbreviation: string | null
+  skuPrefix: string | null
+  sellingPrice: string | null
+  actualMarginRate: string | null
+  breakevenSellingPrice: string | null
+  priceCheck: boolean
+  weightCheck: boolean
+  breakevenProfit: string | null
+  breakevenMarginRate: string | null
+  price1: string | null
+  shippingFee: string | null
+  commissionRate: string | null
+  returnRate: string | null
+  sourceUrl: string | null
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface PageResult<T> {
   items: T[]
   page: number

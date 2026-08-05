@@ -1,16 +1,17 @@
 .login-page { min-height: 100vh; display: grid; grid-template-columns: minmax(360px, 1fr) minmax(460px, .92fr); background: var(--ant-color-bg-layout); }
-.login-intro { position: relative; padding: 76px clamp(44px, 8vw, 140px); background: var(--app-sider); color: var(--app-inverse-text); overflow: hidden; }
+.login-intro { position: relative; padding: 76px clamp(44px, 8vw, 140px); background: var(--app-sider); color: #f8fafc; overflow: hidden; }
 .login-intro::after { content: ''; position: absolute; width: 380px; height: 380px; border: 1px solid rgba(255,255,255,.12); border-radius: 50%; right: -150px; bottom: -140px; box-shadow: 0 0 0 40px rgba(255,255,255,.025), 0 0 0 80px rgba(255,255,255,.025); }
 .brand-mark-light { padding: 0; height: auto; margin-bottom: 130px; }
-.login-intro h1 { color: var(--app-inverse-text); font-size: clamp(38px, 4.4vw, 66px); line-height: 1.15; letter-spacing: -.04em; margin-bottom: 28px; }
+.login-intro h1.ant-typography { color: #f8fafc; font-size: clamp(38px, 4.4vw, 66px); line-height: 1.15; letter-spacing: -.04em; margin-bottom: 28px; }
 .login-intro h1 span { color: var(--ant-color-primary); }
-.login-intro .ant-typography { color: var(--ant-color-text-secondary); max-width: 390px; line-height: 1.9; }
+.login-intro .ant-typography:not(h1) { color: rgba(248, 250, 252, .86); max-width: 390px; line-height: 1.9; }
 .intro-rule { width: 46px; height: 2px; margin-top: 130px; margin-bottom: 16px; background: var(--ant-color-primary); }
-.intro-caption { color: var(--ant-color-text-tertiary) !important; font-size: 10px; letter-spacing: .15em; }
-.login-panel { display: grid; place-items: center; padding: 48px; }
-.login-card { width: min(430px, 100%); padding: 26px; background: transparent; }
+.intro-caption { color: rgba(248, 250, 252, .64) !important; font-size: 10px; letter-spacing: .15em; }
+.login-panel { display: grid; place-items: center; padding: 48px; background: var(--ant-color-bg-layout); }
+.login-card { width: min(430px, 100%); padding: 30px; background: var(--ant-color-bg-container); border: 1px solid var(--ant-color-border-secondary); box-shadow: var(--ant-box-shadow-secondary); }
 .login-card h2 { margin: 10px 0 6px; color: var(--ant-color-text); font-size: 30px; }
 .login-card .ant-form { margin-top: 28px; }
+.login-card .ant-form-item-label > label { color: var(--ant-color-text); }
 .login-card .ant-btn-primary { height: 46px; box-shadow: none; }
 .login-alert { margin-top: 20px; }
 .login-footnote { margin-top: 26px; font-size: 12px; text-align: center; }

@@ -1,2 +1,2 @@
-export * from './dto'
-export * from './type'
+export * from './dto.js'
+export * from './type.js'

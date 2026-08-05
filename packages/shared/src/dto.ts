@@ -1,4 +1,4 @@
-import type { EmployeeWorkBatch, EmployeeWorkItem, ImportBatch, PageResult, Product, UserRole } from './type'
+import type { EmployeeWorkBatch, EmployeeWorkItem, ImportBatch, OzonProductPricing, OzonStatisticsBatch, PageResult, Product, UserRole } from './type.js'
 
 export interface LoginRequestDto {
   email: string
@@ -62,5 +62,19 @@ export type EmployeeWorkListResponseDto = PageResult<EmployeeWorkItem>
 
 export interface EmployeeWorkImportResponseDto {
   batch: EmployeeWorkBatch
+  importedRows: number
+}
+
+export interface OzonPricingListQueryDto {
+  page?: number
+  pageSize?: number
+  store?: string
+  keyword?: string
+}
+
+export type OzonPricingListResponseDto = PageResult<OzonProductPricing>
+
+export interface OzonPricingImportResponseDto {
+  batch: OzonStatisticsBatch
   importedRows: number
 }

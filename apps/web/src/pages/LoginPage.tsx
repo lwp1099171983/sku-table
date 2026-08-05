@@ -3,6 +3,7 @@ import { Button, Card, Form, Input, Typography } from 'antd'
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ErrorAlert } from '../components/ErrorAlert'
+import { APP_COPY } from '../constants/app'
 import { useAuth } from '../layouts/AuthContext'
 import './LoginPage.css'
 
@@ -35,13 +36,13 @@ export function LoginPage() {
   return (
     <main className="login-page">
       <section className="login-intro">
-        <div className="brand-mark brand-mark-light"><span className="brand-dot" /><span>选品工作台</span></div>
+        <div className="brand-mark brand-mark-light"><span className="brand-dot" /><span>{APP_COPY.name}</span></div>
         <Typography.Title>把选品资料，<br /><span>放在同一张桌上。</span></Typography.Title>
         <Typography.Paragraph>
           统一管理商品资料，保留每次导入的来源，让团队把时间用在跟进和判断上。
         </Typography.Paragraph>
         <div className="intro-rule" />
-        <Typography.Text className="intro-caption">TEAM PRODUCT WORKSPACE / 01</Typography.Text>
+        <Typography.Text className="intro-caption">{APP_COPY.englishName} / 01</Typography.Text>
       </section>
       <section className="login-panel">
         <Card bordered={false} className="login-card">

@@ -3,6 +3,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { AppLayout } from './layouts/AppLayout'
 import { EmployeeWorkPage } from './pages/EmployeeWorkPage'
 import { LoginPage } from './pages/LoginPage'
+import { PricingPage } from './pages/PricingPage'
 
 export function App() {
   return (
@@ -11,6 +12,7 @@ export function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route index element={<EmployeeWorkPage />} />
+          <Route path="pricing" element={<PricingPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

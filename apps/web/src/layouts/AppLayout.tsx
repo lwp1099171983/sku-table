@@ -1,7 +1,8 @@
-import { LogoutOutlined, MoonOutlined, ScheduleOutlined, SunOutlined, UserOutlined } from '@ant-design/icons'
+import { CalculatorOutlined, LogoutOutlined, MoonOutlined, ScheduleOutlined, SunOutlined, UserOutlined } from '@ant-design/icons'
 import { Avatar, Button, Layout, Menu, Space, Tooltip, Typography } from 'antd'
 import { useMemo } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { APP_COPY } from '../constants/app'
 import { useAuth } from './AuthContext'
 import { useTheme } from './ThemeContext'
 
@@ -14,15 +15,18 @@ export function AppLayout() {
   const location = useLocation()
 
   const menuItems = useMemo(() => [
-    { key: '/', icon: <ScheduleOutlined />, label: '员工工作记录' },
+    { key: '/', icon: <ScheduleOutlined />, label: APP_COPY.employeeWork },
+    { key: '/pricing', icon: <CalculatorOutlined />, label: APP_COPY.pricing },
   ], [])
+
+  const headerContext = location.pathname === '/pricing' ? APP_COPY.pricing : APP_COPY.employeeWork
 
   return (
     <Layout className="app-layout">
       <Sider breakpoint="lg" collapsedWidth="0" className="app-sider">
         <div className="brand-mark">
           <span className="brand-dot" />
-          <span>选品工作台</span>
+          <span>{APP_COPY.name}</span>
         </div>
         <Menu
           theme="dark"
@@ -34,7 +38,7 @@ export function AppLayout() {
       </Sider>
       <Layout>
         <Header className="app-header">
-          <Typography.Text className="header-context">员工工作记录 / v1</Typography.Text>
+          <Typography.Text className="header-context">{headerContext}</Typography.Text>
           <Space size="middle">
             <Tooltip title={mode === 'dark' ? '切换浅色主题' : '切换深色主题'}>
               <Button
