@@ -1,10 +1,11 @@
-import { DownloadOutlined, InboxOutlined, LinkOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, InboxOutlined, LinkOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
 import { Alert, App as AntdApp, AutoComplete, Button, Empty, Input, Modal, Pagination, Progress, Select, Space, Table, Tag, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { EmployeeWorkBatch, EmployeeWorkItem } from '@sku-table/shared'
 import { APP_COPY } from '../constants/app'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useAuth } from '../layouts/AuthContext'
 import { employeeWorkService } from '../services/employeeWorkService'
 import { downloadTemplate, templateFiles } from '../services/templateService'
@@ -12,6 +13,7 @@ import './EmployeeWorkPage.css'
 
 const DEFAULT_PAGE_SIZE = 30
 const PAGE_SIZE_OPTIONS = [30, 50, 100]
+const SKU_DEBOUNCE_MS = 300
 
 function today() {
   const date = new Date()
@@ -33,6 +35,8 @@ export function EmployeeWorkPage() {
   const [employeeOptions, setEmployeeOptions] = useState<string[]>([])
   const [filterEmployee, setFilterEmployee] = useState<string>()
   const [filterDate, setFilterDate] = useState('')
+  const [filterSku, setFilterSku] = useState('')
+  const debouncedSku = useDebouncedValue(filterSku, SKU_DEBOUNCE_MS)
   const [items, setItems] = useState<EmployeeWorkItem[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
@@ -55,6 +59,7 @@ export function EmployeeWorkPage() {
         pageSize,
         employeeName: filterEmployee,
         workDate: filterDate || undefined,
+        sku: debouncedSku.trim() || undefined,
       })
       setItems(result.items)
       setTotal(result.total)
@@ -63,7 +68,7 @@ export function EmployeeWorkPage() {
     } finally {
       setLoading(false)
     }
-  }, [filterDate, filterEmployee, message, page, pageSize])
+  }, [debouncedSku, filterDate, filterEmployee, message, page, pageSize])
 
   useEffect(() => { void loadEmployees() }, [loadEmployees])
   useEffect(() => { void loadItems() }, [loadItems])
@@ -152,6 +157,7 @@ export function EmployeeWorkPage() {
   function resetFilters() {
     setFilterEmployee(undefined)
     setFilterDate('')
+    setFilterSku('')
     setPage(1)
   }
 
@@ -220,7 +226,8 @@ export function EmployeeWorkPage() {
         <div className="section-heading"><div><Typography.Title level={4}>工作明细</Typography.Title><Typography.Text type="secondary">共 {total.toLocaleString()} 条记录</Typography.Text></div></div>
         <div className="filter-bar work-filter-bar">
           <Space size="middle" wrap>
-          <Select className="employee-filter-select" allowClear showSearch placeholder="全部员工" value={filterEmployee} options={employeeOptions.map((name) => ({ value: name, label: name }))} onChange={(value) => { setFilterEmployee(value); setPage(1) }} />
+            <Input className="sku-filter-input" prefix={<SearchOutlined />} allowClear placeholder="按货号筛选" value={filterSku} onChange={(event) => { setFilterSku(event.target.value); setPage(1) }} />
+            <Select className="employee-filter-select" allowClear showSearch placeholder="全部员工" value={filterEmployee} options={employeeOptions.map((name) => ({ value: name, label: name }))} onChange={(value) => { setFilterEmployee(value); setPage(1) }} />
             <Input className="employee-date-filter" type="date" value={filterDate} onChange={(event) => { setFilterDate(event.target.value); setPage(1) }} />
             <Button onClick={resetFilters}>清除筛选</Button>
           </Space>

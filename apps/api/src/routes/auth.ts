@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { z } from 'zod'
 import { AccountExistsError, authenticate, registerAdmin } from '../modules/auth/auth.service.js'
-import { type AuthEnv, requireAuth, requireRole } from '../modules/auth/auth.middleware.js'
+import { type AuthEnv, requireAuth, requirePermission } from '../modules/auth/auth.middleware.js'
 
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -51,16 +51,19 @@ loginRoutes.post('/login', async (context) => {
   return context.json(result)
 })
 
-loginRoutes.get('/me', requireAuth, (context) => context.json({ user: context.get('authUser') }))
+loginRoutes.get('/me', requireAuth, (context) => context.json(context.get('authContext')))
 
-loginRoutes.post('/register', requireAuth, requireRole('owner'), async (context) => {
+loginRoutes.post('/register', requireAuth, requirePermission('member.manage'), async (context) => {
   const body = await readRegisterAdminBody(context)
   if (!body) {
     return context.json({ code: 'VALIDATION_ERROR', message: '请填写有效邮箱，密码至少需要 8 个字符。' }, 400)
   }
 
   try {
-    const user = await registerAdmin(body)
+    const user = await registerAdmin({
+      ...body,
+      studioId: context.get('authContext').currentStudio.id,
+    })
     return context.json({ user }, 201)
   } catch (error) {
     if (error instanceof AccountExistsError) {

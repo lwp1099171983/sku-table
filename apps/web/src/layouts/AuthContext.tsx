@@ -1,31 +1,40 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import type { AppUser, UserRole } from '@sku-table/shared'
+import type { AuthUser, Studio, UserRole } from '@sku-table/shared'
 import { authService } from '../services/authService'
 
 interface AuthContextValue {
-  user: AppUser | null
+  user: AuthUser | null
+  roles: UserRole[]
+  permissions: string[]
+  studios: Studio[]
+  currentStudio: Studio | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   canImport: boolean
+  isOwner: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
-function toAppUser(user: { id: string; email: string; displayName: string | null; role: UserRole }): AppUser {
-  return {
-    ...user,
-    isActive: true,
-    createdAt: '',
-  }
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [roles, setRoles] = useState<UserRole[]>([])
+  const [permissions, setPermissions] = useState<string[]>([])
+  const [studios, setStudios] = useState<Studio[]>([])
+  const [currentStudio, setCurrentStudio] = useState<Studio | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  const clearAuthState = () => {
+    setUser(null)
+    setRoles([])
+    setPermissions([])
+    setStudios([])
+    setCurrentStudio(null)
+  }
+
   useEffect(() => {
-    const handleUnauthorized = () => setUser(null)
+    const handleUnauthorized = () => clearAuthState()
     window.addEventListener('sku-table:unauthorized', handleUnauthorized)
 
     if (!authService.hasToken()) {
@@ -34,8 +43,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     authService.getCurrentUser()
-      .then(({ user: currentUser }) => setUser(toAppUser(currentUser)))
-      .catch(() => setUser(null))
+      .then((context) => {
+        setUser(context.user)
+        setRoles(context.roles)
+        setPermissions(context.permissions)
+        setStudios(context.studios)
+        setCurrentStudio(context.currentStudio)
+      })
+      .catch(() => clearAuthState())
       .finally(() => setIsLoading(false))
 
     return () => window.removeEventListener('sku-table:unauthorized', handleUnauthorized)
@@ -43,17 +58,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AuthContextValue>(() => ({
     user,
+    roles,
+    permissions,
+    studios,
+    currentStudio,
     isLoading,
-    canImport: user?.role === 'owner',
+    canImport: permissions.includes('employee_work.import')
+      || permissions.includes('pricing.import')
+      || permissions.includes('product.import'),
+    isOwner: roles.includes('owner'),
     async login(email, password) {
       const response = await authService.login({ email, password })
-      setUser(toAppUser(response.user))
+      setUser(response.user)
+      setRoles(response.roles)
+      setPermissions(response.permissions)
+      setStudios(response.studios)
+      setCurrentStudio(response.currentStudio)
     },
     async logout() {
       await authService.logout()
-      setUser(null)
+      clearAuthState()
     },
-  }), [isLoading, user])
+  }), [isLoading, user, roles, permissions, studios, currentStudio])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

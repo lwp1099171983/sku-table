@@ -2,6 +2,7 @@
 .field-label { display: grid; gap: 7px; color: var(--ant-color-text-secondary); font-size: 13px; font-weight: 600; }
 .employee-name-autocomplete { width: 100%; }
 .employee-filter-select { width: 180px; }
+.sku-filter-input { width: 200px; }
 .employee-date-filter { width: 170px; }
 .import-result { margin-top: 20px; }
 .work-filter-bar { margin-bottom: 12px; }

@@ -2,7 +2,7 @@ import type { EmployeeWorkImportResponseDto, EmployeeWorkListResponseDto } from 
 import apiClient from './apiClient'
 
 export const employeeWorkService = {
-  async list(params: { page: number; pageSize: number; employeeName?: string; workDate?: string }): Promise<EmployeeWorkListResponseDto> {
+  async list(params: { page: number; pageSize: number; employeeName?: string; workDate?: string; sku?: string }): Promise<EmployeeWorkListResponseDto> {
     const { data } = await apiClient.get<EmployeeWorkListResponseDto>('/employee-work', { params })
     return data
   },

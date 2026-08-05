@@ -2,11 +2,14 @@ import { readdir, readFile } from 'node:fs/promises'
 import { pool } from './client.js'
 
 const migrationsUrl = new URL('./migrations/', import.meta.url)
+// 固定的 advisory lock key，避免多个 API 实例同时执行迁移
+const MIGRATION_LOCK_KEY = 726001
 
 async function migrate() {
   const client = await pool.connect()
 
   try {
+    await client.query('select pg_advisory_lock($1)', [MIGRATION_LOCK_KEY])
     await client.query(`
       create table if not exists schema_migrations (
         version text primary key,
@@ -40,6 +43,7 @@ async function migrate() {
 
     console.log('数据库迁移检查完成。')
   } finally {
+    await client.query('select pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY])
     client.release()
     await pool.end()
   }

@@ -1,10 +1,39 @@
 export type UserRole = 'owner' | 'selector' | 'operator'
 
-export interface AppUser {
+export type PermissionCode =
+  | 'studio.manage'
+  | 'member.read'
+  | 'member.manage'
+  | 'employee_work.read'
+  | 'employee_work.import'
+  | 'employee_work.delete'
+  | 'employee_work.rollback'
+  | 'pricing.read'
+  | 'pricing.import'
+  | 'pricing.edit'
+  | 'pricing.delete'
+  | 'pricing.rollback'
+  | 'product.read'
+  | 'product.import'
+  | 'product.note.edit'
+  | 'product.fields.edit'
+  | 'product.delete'
+  | 'product.rollback'
+
+export interface AuthUser {
   id: string
   email: string
   displayName: string | null
-  role: UserRole
+}
+
+export interface Studio {
+  id: string
+  name: string
+  createdAt: string
+}
+
+export interface AppUser extends AuthUser {
+  roles: UserRole[]
   isActive: boolean
   createdAt: string
 }

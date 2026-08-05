@@ -4,8 +4,9 @@ import { env } from '../../config/env.js'
 const issuer = 'sku-table-api'
 const secret = new TextEncoder().encode(env.JWT_SECRET)
 
-export async function createAccessToken(user: { id: string; email: string; role: string }) {
-  return new SignJWT({ email: user.email, role: user.role })
+// JWT 只保存用户 ID，不保存角色和权限，避免权限变更后令牌内容过期
+export async function createAccessToken(user: { id: string }) {
+  return new SignJWT({})
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(user.id)
     .setIssuer(issuer)

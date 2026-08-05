@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { EmployeeWorkListQueryDto } from '@sku-table/shared'
-import { type AuthEnv, requireAuth, requireRole } from '../modules/auth/auth.middleware.js'
+import { type AuthEnv, requireAuth, requirePermission } from '../modules/auth/auth.middleware.js'
 import { parseEmployeeWorkFileAsync } from '../modules/employee-work/parser.js'
 import { createEmployeeWorkImport, listEmployeeNames, listEmployeeWorkItems } from '../modules/employee-work/repository.js'
 
@@ -12,6 +12,8 @@ const listQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(100),
   employeeName: z.string().trim().max(100).optional(),
   workDate: dateSchema.optional(),
+  sku: z.string().trim().max(200).optional(),
+  cursor: z.string().trim().max(200).optional(),
 })
 
 function isValidDate(value: string) {
@@ -22,25 +24,30 @@ function isValidDate(value: string) {
 
 export const employeeWorkRoutes = new Hono<AuthEnv>()
 
-employeeWorkRoutes.get('/', requireAuth, async (context) => {
+employeeWorkRoutes.get('/', requireAuth, requirePermission('employee_work.read'), async (context) => {
   const rawQuery = context.req.query()
   const result = listQuerySchema.safeParse(rawQuery)
   if (!result.success || (result.data.workDate && !isValidDate(result.data.workDate))) {
     return context.json({ code: 'VALIDATION_ERROR', message: '分页或筛选条件不正确。' }, 400)
   }
 
+  // studioId 一律取自认证上下文，不接受客户端传入
+  const studioId = context.get('authContext').currentStudio.id
   const query: Required<Pick<EmployeeWorkListQueryDto, 'page' | 'pageSize'>> & Omit<EmployeeWorkListQueryDto, 'page' | 'pageSize'> = {
-    ...result.data,
+    page: result.data.page,
+    pageSize: result.data.pageSize,
     employeeName: result.data.employeeName || undefined,
+    workDate: result.data.workDate,
+    sku: result.data.sku || undefined,
   }
-  return context.json(await listEmployeeWorkItems(query))
+  return context.json(await listEmployeeWorkItems(studioId, query))
 })
 
-employeeWorkRoutes.get('/employees', requireAuth, async (context) => {
-  return context.json({ items: await listEmployeeNames() })
+employeeWorkRoutes.get('/employees', requireAuth, requirePermission('employee_work.read'), async (context) => {
+  return context.json({ items: await listEmployeeNames(context.get('authContext').currentStudio.id) })
 })
 
-employeeWorkRoutes.post('/import', requireAuth, requireRole('owner'), async (context) => {
+employeeWorkRoutes.post('/import', requireAuth, requirePermission('employee_work.import'), async (context) => {
   let formData: FormData
   try {
     formData = await context.req.formData()
@@ -66,7 +73,13 @@ employeeWorkRoutes.post('/import', requireAuth, requireRole('owner'), async (con
     return context.json({ code: 'IMPORT_FILE_INVALID', message }, 400)
   }
 
+  // 防御性校验：行数须在 0~50000（length 恒非负，仅需兜底上限）
+  if (items.length > 50_000) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '导入行数超出允许范围（0~50000）。' }, 400)
+  }
+
   const batch = await createEmployeeWorkImport({
+    studioId: context.get('authContext').currentStudio.id,
     employeeName,
     workDate,
     fileName: file.name || '未命名文件.xlsx',

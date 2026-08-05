@@ -9,7 +9,7 @@ import { useTheme } from './ThemeContext'
 const { Header, Sider, Content } = Layout
 
 export function AppLayout() {
-  const { user, logout } = useAuth()
+  const { user, isOwner, logout } = useAuth()
   const { mode, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
@@ -17,8 +17,8 @@ export function AppLayout() {
   const menuItems = useMemo(() => [
     { key: '/', icon: <ScheduleOutlined />, label: APP_COPY.employeeWork },
     { key: '/pricing', icon: <CalculatorOutlined />, label: APP_COPY.pricing },
-    ...(user?.role === 'owner' ? [{ key: '/admin/register', icon: <UserAddOutlined />, label: APP_COPY.adminRegistration }] : []),
-  ], [user?.role])
+    ...(isOwner ? [{ key: '/admin/register', icon: <UserAddOutlined />, label: APP_COPY.adminRegistration }] : []),
+  ], [isOwner])
 
   const headerContext = location.pathname === '/pricing'
     ? APP_COPY.pricing
