@@ -59,7 +59,7 @@ export function LoginPage() {
             </Form.Item>
             <Button type="primary" htmlType="submit" block loading={isSubmitting}>进入工作台</Button>
           </Form>
-          <Typography.Paragraph className="login-footnote" type="secondary">账号由团队负责人统一开通，暂不支持公开注册。</Typography.Paragraph>
+          <Typography.Paragraph className="login-footnote" type="secondary">管理员可在工作台注册管理员账号。</Typography.Paragraph>
         </Card>
       </section>
     </main>

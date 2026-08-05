@@ -11,3 +11,5 @@
 - `pricing_items`：选品定价、利润和费用统计明细。
 
 执行 `pnpm db:migrate` 会按文件名顺序执行未完成的 SQL 迁移。
+
+`0005_reset_pricing_tables.sql` 会删除并重建旧的 `ozon_*` 和当前 `pricing_*` 表，仅清理选品定价假数据，不影响用户和员工工作记录。

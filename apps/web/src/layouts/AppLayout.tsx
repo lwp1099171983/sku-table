@@ -1,4 +1,4 @@
-import { CalculatorOutlined, LogoutOutlined, MoonOutlined, ScheduleOutlined, SunOutlined, UserOutlined } from '@ant-design/icons'
+import { CalculatorOutlined, LogoutOutlined, MoonOutlined, ScheduleOutlined, SunOutlined, UserAddOutlined, UserOutlined } from '@ant-design/icons'
 import { Avatar, Button, Layout, Menu, Space, Tooltip, Typography } from 'antd'
 import { useMemo } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -17,9 +17,14 @@ export function AppLayout() {
   const menuItems = useMemo(() => [
     { key: '/', icon: <ScheduleOutlined />, label: APP_COPY.employeeWork },
     { key: '/pricing', icon: <CalculatorOutlined />, label: APP_COPY.pricing },
-  ], [])
+    ...(user?.role === 'owner' ? [{ key: '/admin/register', icon: <UserAddOutlined />, label: APP_COPY.adminRegistration }] : []),
+  ], [user?.role])
 
-  const headerContext = location.pathname === '/pricing' ? APP_COPY.pricing : APP_COPY.employeeWork
+  const headerContext = location.pathname === '/pricing'
+    ? APP_COPY.pricing
+    : location.pathname === '/admin/register'
+      ? APP_COPY.adminRegistration
+      : APP_COPY.employeeWork
 
   return (
     <Layout className="app-layout">

@@ -1,0 +1,10 @@
+.admin-registration-card { max-width: 560px; padding: 28px; border: 1px solid var(--ant-color-border-secondary); box-shadow: none; }
+.admin-registration-card h3 { margin-bottom: 6px; }
+.admin-registration-card .ant-form { margin-top: 26px; }
+.admin-registration-card .ant-btn-primary { display: block; min-width: 168px; margin-top: 50px; margin-inline-start: auto; }
+.admin-registration-alert { margin-top: 18px; }
+
+@media (max-width: 800px) {
+  .admin-registration-card { padding: 22px; }
+  .admin-registration-card .ant-btn-primary { width: 100%; }
+}

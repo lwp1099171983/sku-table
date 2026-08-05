@@ -10,7 +10,8 @@ import { employeeWorkService } from '../services/employeeWorkService'
 import { downloadTemplate, templateFiles } from '../services/templateService'
 import './EmployeeWorkPage.css'
 
-const PAGE_SIZE = 100
+const DEFAULT_PAGE_SIZE = 30
+const PAGE_SIZE_OPTIONS = [30, 50, 100]
 
 function today() {
   const date = new Date()
@@ -34,6 +35,7 @@ export function EmployeeWorkPage() {
   const [filterDate, setFilterDate] = useState('')
   const [items, setItems] = useState<EmployeeWorkItem[]>([])
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
 
@@ -50,7 +52,7 @@ export function EmployeeWorkPage() {
     try {
       const result = await employeeWorkService.list({
         page,
-        pageSize: PAGE_SIZE,
+        pageSize,
         employeeName: filterEmployee,
         workDate: filterDate || undefined,
       })
@@ -61,7 +63,7 @@ export function EmployeeWorkPage() {
     } finally {
       setLoading(false)
     }
-  }, [filterDate, filterEmployee, message, page])
+  }, [filterDate, filterEmployee, message, page, pageSize])
 
   useEffect(() => { void loadEmployees() }, [loadEmployees])
   useEffect(() => { void loadItems() }, [loadItems])
@@ -153,6 +155,15 @@ export function EmployeeWorkPage() {
     setPage(1)
   }
 
+  function handlePageChange(nextPage: number, nextPageSize: number) {
+    if (nextPageSize !== pageSize) {
+      setPageSize(nextPageSize)
+      setPage(1)
+      return
+    }
+    setPage(nextPage)
+  }
+
   return (
     <section className="content-page">
       <div className="page-heading">
@@ -216,7 +227,7 @@ export function EmployeeWorkPage() {
         </div>
         <div className="table-wrap">
           <Table rowKey="id" columns={columns} dataSource={items} loading={loading} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂时没有员工工作数据" /> }} scroll={{ x: 1300 }} pagination={false} />
-          {total > 0 && <div className="table-pagination"><Pagination current={page} pageSize={PAGE_SIZE} total={total} showSizeChanger={false} showQuickJumper showTotal={(count) => `共 ${count.toLocaleString()} 条`} onChange={setPage} /></div>}
+          {total > 0 && <div className="table-pagination"><Pagination current={page} pageSize={pageSize} total={total} showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} showQuickJumper showTotal={(count) => `共 ${count.toLocaleString()} 条`} onChange={handlePageChange} /></div>}
         </div>
       </div>
     </section>

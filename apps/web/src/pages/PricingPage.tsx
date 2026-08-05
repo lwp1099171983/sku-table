@@ -13,8 +13,9 @@ import { Alert, App as AntdApp, Button, Empty, Input, Modal, Progress, Select, S
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import type { ProductPricing, PricingBatch } from '@sku-table/shared'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { APP_COPY } from '../constants/app'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useAuth } from '../layouts/AuthContext'
 import { pricingService } from '../services/pricingService'
 import { downloadTemplate, templateFiles } from '../services/templateService'
@@ -46,6 +47,7 @@ interface PricingRow {
 
 const DEFAULT_PAGE_SIZE = 30
 const PAGE_SIZE_OPTIONS = [30, 50, 100]
+const KEYWORD_DEBOUNCE_MS = 300
 
 const demoRows: PricingRow[] = []
 
@@ -78,37 +80,40 @@ export function PricingPage() {
   const [total, setTotal] = useState(demoRows.length)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
-  const [loading, setLoading] = useState(false)
+  // 首次渲染即进入加载态，避免请求尚未发出时短暂显示空的演示批次。
+  const [loading, setLoading] = useState(true)
   const [isDemo, setIsDemo] = useState(true)
-  const [stores, setStores] = useState<string[]>([...new Set(demoRows.map((row) => row.store))])
   const [keyword, setKeyword] = useState('')
-  const [store, setStore] = useState<string>()
   const [checkStatus, setCheckStatus] = useState<'all' | 'passed' | 'pending'>('all')
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
   const [latestBatch, setLatestBatch] = useState<PricingBatch | null>(null)
+  const debouncedKeyword = useDebouncedValue(keyword, KEYWORD_DEBOUNCE_MS)
+  const requestSequence = useRef(0)
+  const isDemoRef = useRef(isDemo)
 
   const loadRows = useCallback(async (targetPage = page) => {
+    const requestId = ++requestSequence.current
     setLoading(true)
     try {
-      const result = await pricingService.list({ page: targetPage, pageSize, store, keyword: keyword.trim() || undefined })
+      const result = await pricingService.list({ page: targetPage, pageSize, keyword: debouncedKeyword.trim() || undefined })
+      if (requestId !== requestSequence.current) return
       setRows(result.items.map(toPricingRow))
       setTotal(result.total)
-      setStores((current) => [...new Set([...current, ...result.items.map((item) => item.store).filter((value): value is string => Boolean(value))])])
       setIsDemo(false)
+      isDemoRef.current = false
     } catch {
-      if (!isDemo) message.error(`${APP_COPY.pricing}数据加载失败，请稍后重试。`)
+      if (requestId === requestSequence.current && !isDemoRef.current) {
+        message.error(`${APP_COPY.pricing}数据加载失败，请稍后重试。`)
+      }
     } finally {
-      setLoading(false)
+      if (requestId === requestSequence.current) setLoading(false)
     }
-  }, [isDemo, keyword, message, page, pageSize, store])
+  }, [debouncedKeyword, message, page, pageSize])
 
   useEffect(() => { void loadRows(page) }, [loadRows, page])
-  useEffect(() => {
-    pricingService.list({ page: 1, pageSize: 100 }).then((result) => setStores((current) => [...new Set([...current, ...result.items.map((item) => item.store).filter((value): value is string => Boolean(value))])])).catch(() => undefined)
-  }, [])
 
   const filteredRows = useMemo(() => rows.filter((row) => checkStatus === 'all' || (checkStatus === 'passed' ? row.priceCheck && row.weightCheck : !row.priceCheck || !row.weightCheck)), [checkStatus, rows])
   const passedCount = rows.filter((row) => row.priceCheck && row.weightCheck).length
@@ -150,6 +155,7 @@ export function PricingPage() {
       const result = await pricingService.importFile({ file, onProgress: setUploadProgress })
       setLatestBatch(result.batch)
       setIsDemo(false)
+      isDemoRef.current = false
       message.success(`已导入 ${result.importedRows.toLocaleString()} 行${APP_COPY.pricing}数据。`)
       setFile(null)
       setUploadProgress(0)
@@ -166,7 +172,6 @@ export function PricingPage() {
 
   function resetFilters() {
     setKeyword('')
-    setStore(undefined)
     setCheckStatus('all')
     setPage(1)
   }
@@ -181,7 +186,7 @@ export function PricingPage() {
   }
 
   const batchName = latestBatch?.fileName ?? `${APP_COPY.pricingTemplate}.xlsx`
-  const batchDescription = latestBatch ? `${latestBatch.totalRows.toLocaleString()} 行 · ${new Date(latestBatch.createdAt).toLocaleString('zh-CN')}` : isDemo ? '页面演示数据' : '服务端最新数据'
+  const batchDescription = loading ? '正在加载服务端数据...' : latestBatch ? `${latestBatch.totalRows.toLocaleString()} 行 · ${new Date(latestBatch.createdAt).toLocaleString('zh-CN')}` : isDemo ? '页面演示数据' : '服务端最新数据'
 
   return (
     <section className="content-page pricing-page">
@@ -202,14 +207,14 @@ export function PricingPage() {
         {isUploading && <div className="progress-block"><Typography.Text>正在解析并写入数据...</Typography.Text><Progress percent={uploadProgress} status="active" /></div>}
       </Modal>}
 
-      <div className="pricing-meta-bar"><div className="batch-meta"><span className="batch-status-dot" /><div><Typography.Text strong>{batchName} {!latestBatch && <Tag className="demo-tag" bordered={false}>{isDemo ? '演示批次' : '服务端批次'}</Tag>}</Typography.Text><Typography.Text type="secondary">{batchDescription}</Typography.Text></div></div><Typography.Text type="secondary">字段完整度 <strong className="completeness-value">{rows.length ? '100%' : '—'}</strong></Typography.Text></div>
+      <div className="pricing-meta-bar"><div className="batch-meta"><span className="batch-status-dot" /><div><Typography.Text strong>{batchName} {!latestBatch && !loading && <Tag className="demo-tag" bordered={false}>{isDemo ? '演示批次' : '服务端批次'}</Tag>}</Typography.Text><Typography.Text type="secondary">{batchDescription}</Typography.Text></div></div><Typography.Text type="secondary">字段完整度 <strong className="completeness-value">{loading ? '—' : rows.length ? '100%' : '—'}</strong></Typography.Text></div>
 
       <div className="pricing-stat-strip"><Statistic title="当前记录" value={total} suffix="条" /><Statistic title="当前页已通过" value={passedCount} suffix="条" valueStyle={{ color: '#2f855a' }} /><Statistic title="当前页待检查" value={pendingCount} suffix="条" valueStyle={{ color: '#c47a12' }} /></div>
 
-      <div className="pricing-toolbar"><Space size="middle" wrap><Typography.Text strong><FilterOutlined /> 筛选</Typography.Text><Input className="pricing-search" allowClear prefix={<SearchOutlined />} placeholder="搜索产品名、SKU 或店铺" value={keyword} onChange={(event) => { setKeyword(event.target.value); setPage(1) }} /><Select className="pricing-store-select" allowClear placeholder="全部店铺" value={store} onChange={(value) => { setStore(value); setPage(1) }} options={stores.map((value) => ({ value, label: value }))} /><Select className="pricing-status-select" value={checkStatus} onChange={setCheckStatus} options={[{ value: 'all', label: '全部检测状态' }, { value: 'passed', label: '价格和重量均通过' }, { value: 'pending', label: '存在待检查项' }]} />{(keyword || store || checkStatus !== 'all') && <Button type="link" onClick={resetFilters}>清除筛选</Button>}</Space><Typography.Text type="secondary">显示 {filteredRows.length} / {total} 条</Typography.Text></div>
+      <div className="pricing-toolbar"><Space size="middle" wrap><Typography.Text strong><FilterOutlined /> 筛选</Typography.Text><Input className="pricing-search" allowClear prefix={<SearchOutlined />} placeholder="搜索产品名、SKU、店铺或缩写" value={keyword} onChange={(event) => { setKeyword(event.target.value); setPage(1) }} /><Select className="pricing-status-select" value={checkStatus} onChange={setCheckStatus} options={[{ value: 'all', label: '全部检测状态' }, { value: 'passed', label: '价格和重量均通过' }, { value: 'pending', label: '存在待检查项' }]} />{(keyword || checkStatus !== 'all') && <Button type="link" onClick={resetFilters}>清除筛选</Button>}</Space><Typography.Text type="secondary">显示 {filteredRows.length} / {total} 条</Typography.Text></div>
 
       <div className="pricing-table-wrap"><Table<PricingRow> rowKey="id" columns={columns} dataSource={filteredRows} loading={loading} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有匹配的定价记录" /> }} scroll={{ x: 2400 }} pagination={{ current: page, pageSize, total: checkStatus === 'all' ? total : filteredRows.length, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showQuickJumper: true, showTotal: (count) => `共 ${count} 条` }} onChange={(pagination) => handleTableChange(pagination.current ?? 1, pagination.pageSize ?? pageSize)} size="middle" /></div>
-      <div className="pricing-footnote"><Typography.Text type="secondary">价格1仅保存 Excel 原始值，不参与系统计算。比例字段按小数保存并以百分比展示。</Typography.Text></div>
+      {/* <div className="pricing-footnote"><Typography.Text type="secondary">价格1仅保存 Excel 原始值，不参与系统计算。比例字段按小数保存并以百分比展示。</Typography.Text></div> */}
     </section>
   )
 }

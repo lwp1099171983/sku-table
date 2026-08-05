@@ -20,6 +20,16 @@ export interface MeResponseDto {
   user: LoginResponseDto['user']
 }
 
+export interface RegisterAdminRequestDto {
+  email: string
+  password: string
+  displayName?: string
+}
+
+export interface RegisterAdminResponseDto {
+  user: LoginResponseDto['user']
+}
+
 export interface ProductListQueryDto {
   page?: number
   pageSize?: number

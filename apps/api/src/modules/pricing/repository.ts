@@ -32,7 +32,14 @@ export async function listPricing(query: Required<Pick<PricingListQueryDto, 'pag
   if (query.store) filters.push(eq(pricingItems.store, query.store))
   if (query.keyword) {
     const keyword = `%${query.keyword}%`
-    filters.push(or(ilike(pricingItems.productName, keyword), ilike(pricingItems.supplierSku, keyword), ilike(pricingItems.localSku, keyword)))
+    filters.push(or(
+      ilike(pricingItems.store, keyword),
+      ilike(pricingItems.productName, keyword),
+      ilike(pricingItems.supplierSku, keyword),
+      ilike(pricingItems.localSku, keyword),
+      ilike(pricingItems.nameAbbreviation, keyword),
+      ilike(pricingItems.skuPrefix, keyword),
+    ))
   }
   const where = filters.length ? and(...filters) : undefined
   const [{ total }] = await db.select({ total: count(pricingItems.id) }).from(pricingItems).where(where)
