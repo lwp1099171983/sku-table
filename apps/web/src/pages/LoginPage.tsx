@@ -1,7 +1,8 @@
 import { LockOutlined, MailOutlined } from '@ant-design/icons'
-import { Alert, Button, Card, Form, Input, Typography } from 'antd'
+import { Button, Card, Form, Input, Typography } from 'antd'
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { ErrorAlert } from '../components/ErrorAlert'
 import { useAuth } from '../layouts/AuthContext'
 
 interface LoginFormValues {
@@ -46,7 +47,7 @@ export function LoginPage() {
           <Typography.Text className="eyebrow">成员登录</Typography.Text>
           <Typography.Title level={2}>欢迎回来</Typography.Title>
           <Typography.Paragraph type="secondary">使用负责人开通的团队账号继续工作。</Typography.Paragraph>
-          {error && <Alert type="error" showIcon message={error} className="login-alert" />}
+          {error && <ErrorAlert message={error} className="login-alert" />}
           <Form layout="vertical" onFinish={handleSubmit} requiredMark={false} size="large">
             <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email', message: '请输入有效邮箱' }]}>
               <Input prefix={<MailOutlined />} placeholder="name@company.com" autoComplete="email" />

@@ -1,5 +1,5 @@
 import { InboxOutlined, LinkOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
-import { Alert, Button, Card, Empty, Input, Pagination, Progress, Select, Space, Table, Tag, Typography, Upload, message } from 'antd'
+import { Alert, App as AntdApp, AutoComplete, Button, Empty, Input, Modal, Pagination, Progress, Select, Space, Table, Tag, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -18,12 +18,14 @@ function today() {
 
 export function EmployeeWorkPage() {
   const { canImport } = useAuth()
+  const { message } = AntdApp.useApp()
   const [employeeName, setEmployeeName] = useState('')
   const [workDate, setWorkDate] = useState(today)
   const [file, setFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
   const [lastBatch, setLastBatch] = useState<EmployeeWorkBatch | null>(null)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [employeeOptions, setEmployeeOptions] = useState<string[]>([])
   const [filterEmployee, setFilterEmployee] = useState<string>()
   const [filterDate, setFilterDate] = useState('')
@@ -38,7 +40,7 @@ export function EmployeeWorkPage() {
     } catch {
       message.error('员工列表加载失败。')
     }
-  }, [])
+  }, [message])
 
   const loadItems = useCallback(async () => {
     setLoading(true)
@@ -56,7 +58,7 @@ export function EmployeeWorkPage() {
     } finally {
       setLoading(false)
     }
-  }, [filterDate, filterEmployee, page])
+  }, [filterDate, filterEmployee, message, page])
 
   useEffect(() => { void loadEmployees() }, [loadEmployees])
   useEffect(() => { void loadItems() }, [loadItems])
@@ -78,8 +80,17 @@ export function EmployeeWorkPage() {
   }
 
   async function handleUpload() {
-    if (!file || !employeeName.trim() || !workDate) {
-      message.warning('请填写员工姓名、工作日期并选择 Excel 文件。')
+    if (!employeeName.trim()) {
+      console.log('handleUpload1', employeeName, workDate, file)
+      message.error('请输入员工姓名。')
+      return
+    }
+    if (!workDate) {
+      message.error('请选择工作日期。')
+      return
+    }
+    if (!file) {
+      message.error('请选择 Excel 文件。')
       return
     }
 
@@ -99,10 +110,26 @@ export function EmployeeWorkPage() {
       await loadItems()
     } catch (error) {
       const apiMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message
-      message.error(apiMessage || '导入失败，请检查文件格式后重试。')
+      const errorMessage = apiMessage || '导入失败，请检查文件格式后重试。'
+      message.error(errorMessage)
     } finally {
       setIsUploading(false)
     }
+  }
+
+  function openImportModal() {
+    setIsImportModalOpen(true)
+    void loadEmployees()
+  }
+
+  function closeImportModal() {
+    if (isUploading) return
+    setIsImportModalOpen(false)
+    setEmployeeName('')
+    setWorkDate(today())
+    setFile(null)
+    setUploadProgress(0)
+    setLastBatch(null)
   }
 
   const columns: ColumnsType<EmployeeWorkItem> = useMemo(() => [
@@ -131,16 +158,35 @@ export function EmployeeWorkPage() {
           <Typography.Title level={1}>员工工作记录</Typography.Title>
           <Typography.Paragraph type="secondary">老板上传员工每日采集的商品，按员工和日期追溯工作内容。</Typography.Paragraph>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={() => { void loadEmployees(); void loadItems() }}>刷新</Button>
+        <Space className="page-actions">
+          {canImport && <Button type="primary" icon={<UploadOutlined />} onClick={openImportModal}>导入员工数据</Button>}
+          <Button icon={<ReloadOutlined />} onClick={() => { void loadEmployees(); void loadItems() }}>刷新</Button>
+        </Space>
       </div>
 
-      {canImport && <Card className="work-import-card" bordered={false}>
-        <div className="section-heading">
-          <div><Typography.Title level={4}>导入员工数据</Typography.Title><Typography.Text type="secondary">上传的 Excel 只需要包含 7 个商品字段，员工姓名和工作日期在这里填写。</Typography.Text></div>
-        </div>
+      {canImport && <Modal
+        title="导入员工数据"
+        open={isImportModalOpen}
+        width={720}
+        footer={null}
+        maskClosable={!isUploading}
+        keyboard={!isUploading}
+        onCancel={closeImportModal}
+      >
+        <Typography.Paragraph type="secondary">上传的 Excel 只需要包含 7 个商品字段，员工姓名和工作日期在这里填写。</Typography.Paragraph>
         <Alert type="info" showIcon message="支持 .xlsx / .xls；表头为：序号、货号、采集平台、采集商品名称、采集商品链接、采集规格、采集价格(CNY)；单批最多 5 万行。" />
         <div className="work-import-grid">
-          <label className="field-label">员工姓名<Input value={employeeName} maxLength={100} placeholder="例如：小王" onChange={(event) => setEmployeeName(event.target.value)} /></label>
+          <label className="field-label">员工姓名<AutoComplete
+            value={employeeName}
+            options={employeeOptions.map((name) => ({ value: name, label: name }))}
+            maxLength={100}
+            allowClear
+            showSearch
+            style={{ width: '100%' }}
+            placeholder="选择已有员工或输入新姓名"
+            filterOption={(inputValue, option) => String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())}
+            onChange={setEmployeeName}
+          /></label>
           <label className="field-label">工作日期<Input type="date" value={workDate} onChange={(event) => setWorkDate(event.target.value)} /></label>
         </div>
         <Upload.Dragger {...uploadProps} disabled={isUploading}>
@@ -148,10 +194,12 @@ export function EmployeeWorkPage() {
           <p className="ant-upload-text">点击或拖拽员工 Excel 到这里</p>
           <p className="ant-upload-hint">文件名会记录到导入批次中</p>
         </Upload.Dragger>
-        {file && !lastBatch && <Button type="primary" icon={<UploadOutlined />} loading={isUploading} onClick={() => void handleUpload()} className="import-submit">开始导入</Button>}
+        {!lastBatch && <div className="import-submit-block">
+          <Button type="primary" icon={<UploadOutlined />} loading={isUploading} onClick={() => void handleUpload()} className="import-submit">开始导入</Button>
+        </div>}
         {isUploading && <div className="progress-block"><Typography.Text>正在上传和写入数据...</Typography.Text><Progress percent={uploadProgress} status="active" /></div>}
         {lastBatch && <Alert className="import-result" type="success" showIcon message="导入完成" description={`员工：${lastBatch.employeeName}；工作日期：${lastBatch.workDate}；共 ${lastBatch.totalRows.toLocaleString()} 行。`} />}
-      </Card>}
+      </Modal>}
 
       <div className="records-section">
         <div className="section-heading"><div><Typography.Title level={4}>工作明细</Typography.Title><Typography.Text type="secondary">共 {total.toLocaleString()} 条记录</Typography.Text></div></div>
