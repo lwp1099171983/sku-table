@@ -1,4 +1,4 @@
-import { InboxOutlined, LinkOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
+import { DownloadOutlined, InboxOutlined, LinkOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons'
 import { Alert, App as AntdApp, AutoComplete, Button, Empty, Input, Modal, Pagination, Progress, Select, Space, Table, Tag, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
@@ -7,6 +7,7 @@ import type { EmployeeWorkBatch, EmployeeWorkItem } from '@sku-table/shared'
 import { APP_COPY } from '../constants/app'
 import { useAuth } from '../layouts/AuthContext'
 import { employeeWorkService } from '../services/employeeWorkService'
+import { downloadTemplate, templateFiles } from '../services/templateService'
 import './EmployeeWorkPage.css'
 
 const PAGE_SIZE = 100
@@ -162,6 +163,7 @@ export function EmployeeWorkPage() {
         </div>
         <Space className="page-actions">
           {canImport && <Button type="primary" icon={<UploadOutlined />} onClick={openImportModal}>导入员工数据</Button>}
+          <Button icon={<DownloadOutlined />} onClick={() => downloadTemplate(templateFiles.employeeWork, '员工工作记录模板.xlsx')}>下载模板</Button>
           <Button icon={<ReloadOutlined />} onClick={() => { void loadEmployees(); void loadItems() }}>刷新</Button>
         </Space>
       </div>

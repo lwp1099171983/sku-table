@@ -51,22 +51,22 @@ export const employeeWorkItems = pgTable('employee_work_items', {
 
 export type EmployeeWorkItemRow = typeof employeeWorkItems.$inferSelect
 
-export const ozonStatisticsBatches = pgTable('ozon_statistics_batches', {
+export const pricingBatches = pgTable('pricing_batches', {
   id: uuid('id').primaryKey().defaultRandom(),
   fileName: text('file_name').notNull(),
   uploadedBy: uuid('uploaded_by').notNull().references(() => appUsers.id, { onDelete: 'restrict' }),
   totalRows: integer('total_rows').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
-  index('ozon_statistics_batches_uploaded_by_idx').on(table.uploadedBy),
-  index('ozon_statistics_batches_created_at_idx').on(table.createdAt),
+  index('pricing_batches_uploaded_by_idx').on(table.uploadedBy),
+  index('pricing_batches_created_at_idx').on(table.createdAt),
 ])
 
-export type OzonStatisticsBatchRow = typeof ozonStatisticsBatches.$inferSelect
+export type PricingBatchRow = typeof pricingBatches.$inferSelect
 
-export const ozonProductPricing = pgTable('ozon_product_pricing', {
+export const pricingItems = pgTable('pricing_items', {
   id: uuid('id').primaryKey().defaultRandom(),
-  batchId: uuid('batch_id').references(() => ozonStatisticsBatches.id, { onDelete: 'restrict' }),
+  batchId: uuid('batch_id').references(() => pricingBatches.id, { onDelete: 'restrict' }),
   store: text('store'),
   productName: text('product_name').notNull(),
   supplierSku: text('supplier_sku'),
@@ -91,10 +91,10 @@ export const ozonProductPricing = pgTable('ozon_product_pricing', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
-  index('ozon_product_pricing_store_idx').on(table.store),
-  index('ozon_product_pricing_supplier_sku_idx').on(table.supplierSku),
-  index('ozon_product_pricing_local_sku_idx').on(table.localSku),
-  index('ozon_product_pricing_created_by_idx').on(table.createdBy),
+  index('pricing_items_store_idx').on(table.store),
+  index('pricing_items_supplier_sku_idx').on(table.supplierSku),
+  index('pricing_items_local_sku_idx').on(table.localSku),
+  index('pricing_items_created_by_idx').on(table.createdBy),
 ])
 
-export type OzonProductPricingRow = typeof ozonProductPricing.$inferSelect
+export type ProductPricingRow = typeof pricingItems.$inferSelect

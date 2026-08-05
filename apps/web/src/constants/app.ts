@@ -3,5 +3,5 @@ export const APP_COPY = {
   englishName: 'TEAM PRODUCT WORKSPACE',
   employeeWork: '员工工作记录',
   pricing: '选品定价',
-  pricingTemplate: 'OZON-选品、定价表',
+  pricingTemplate: '选品、定价表',
 } as const

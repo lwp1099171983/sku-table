@@ -72,7 +72,7 @@ export interface EmployeeWorkItem {
   price: string | null
 }
 
-export interface OzonStatisticsBatch {
+export interface PricingBatch {
   id: string
   fileName: string
   uploadedBy: string
@@ -80,7 +80,7 @@ export interface OzonStatisticsBatch {
   createdAt: string
 }
 
-export interface OzonProductPricing {
+export interface ProductPricing {
   id: string
   batchId: string | null
   store: string | null

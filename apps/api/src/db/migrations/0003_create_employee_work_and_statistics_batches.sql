@@ -36,22 +36,22 @@ create index if not exists employee_work_items_batch_id_idx
 create index if not exists employee_work_items_sku_idx
   on employee_work_items (sku);
 
-create table if not exists ozon_statistics_batches (
+create table if not exists pricing_batches (
   id uuid primary key default gen_random_uuid(),
   file_name text not null,
   uploaded_by uuid not null references app_users(id) on delete restrict,
   total_rows integer not null default 0,
   created_at timestamptz not null default now(),
-  constraint ozon_statistics_batches_file_name_not_blank check (btrim(file_name) <> ''),
-  constraint ozon_statistics_batches_total_rows_non_negative check (total_rows >= 0)
+  constraint pricing_batches_file_name_not_blank check (btrim(file_name) <> ''),
+  constraint pricing_batches_total_rows_non_negative check (total_rows >= 0)
 );
 
-create index if not exists ozon_statistics_batches_uploaded_by_idx
-  on ozon_statistics_batches (uploaded_by);
-create index if not exists ozon_statistics_batches_created_at_idx
-  on ozon_statistics_batches (created_at);
+create index if not exists pricing_batches_uploaded_by_idx
+  on pricing_batches (uploaded_by);
+create index if not exists pricing_batches_created_at_idx
+  on pricing_batches (created_at);
 
-alter table ozon_product_pricing
+alter table pricing_items
   add column if not exists batch_id uuid;
 
 do $$
@@ -59,14 +59,14 @@ begin
   if not exists (
     select 1
     from pg_constraint
-    where conname = 'ozon_product_pricing_batch_id_fkey'
-      and conrelid = 'ozon_product_pricing'::regclass
+    where conname = 'pricing_items_batch_id_fkey'
+      and conrelid = 'pricing_items'::regclass
   ) then
-    alter table ozon_product_pricing
-      add constraint ozon_product_pricing_batch_id_fkey
-      foreign key (batch_id) references ozon_statistics_batches(id) on delete restrict;
+    alter table pricing_items
+      add constraint pricing_items_batch_id_fkey
+      foreign key (batch_id) references pricing_batches(id) on delete restrict;
   end if;
 end $$;
 
-create index if not exists ozon_product_pricing_batch_id_idx
-  on ozon_product_pricing (batch_id);
+create index if not exists pricing_items_batch_id_idx
+  on pricing_items (batch_id);

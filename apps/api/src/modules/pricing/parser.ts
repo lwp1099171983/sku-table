@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 const MAX_ROWS = 50_000
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 
-export interface ParsedOzonPricingItem {
+export interface ParsedPricingItem {
   store: string | null
   productName: string
   supplierSku: string | null
@@ -26,7 +26,7 @@ export interface ParsedOzonPricingItem {
   sourceUrl: string | null
 }
 
-type PricingField = keyof ParsedOzonPricingItem
+type PricingField = keyof ParsedPricingItem
 type RowLocation = { sheetName: string; rowNumber: number }
 
 const headerAliases: Record<string, PricingField> = {
@@ -88,13 +88,13 @@ function normalizeBoolean(value: unknown, location: RowLocation, label: string) 
   throw new Error(`${locationText(location)}的${label}只能填写 1/0 或通过/待检查。`)
 }
 
-export async function parseOzonPricingFileAsync(file: File): Promise<ParsedOzonPricingItem[]> {
+export async function parsePricingFileAsync(file: File): Promise<ParsedPricingItem[]> {
   const fileName = file.name.toLowerCase()
   if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) throw new Error('只支持 .xlsx 或 .xls 文件。')
   if (file.size > MAX_FILE_SIZE) throw new Error('文件不能超过 20MB。')
   const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' })
   const requiredFields = Object.values(headerAliases).filter((field, index, fields) => fields.indexOf(field) === index)
-  const items: ParsedOzonPricingItem[] = []
+  const items: ParsedPricingItem[] = []
   let matchedSheetCount = 0
 
   for (const sheetName of workbook.SheetNames) {
@@ -134,6 +134,6 @@ export async function parseOzonPricingFileAsync(file: File): Promise<ParsedOzonP
     }
   }
 
-  if (matchedSheetCount === 0) throw new Error('未找到包含 20 个字段表头的工作表，请确认使用 OZON 选品、定价表模板。')
+  if (matchedSheetCount === 0) throw new Error('未找到包含 20 个字段表头的工作表，请确认使用选品定价表模板。')
   return items
 }
