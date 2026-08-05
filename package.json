@@ -1,26 +1,21 @@
 {
-  "name": "sku-table",
+  "name": "sku-table-workspace",
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@ant-design/icons": "^6.0.0",
-    "antd": "^5.27.0",
-    "axios": "^1.11.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "react-router-dom": "^7.7.1"
+    "dev": "pnpm dev:web",
+    "dev:web": "pnpm --filter @sku-table/web dev",
+    "dev:api": "pnpm --filter @sku-table/api dev",
+    "build": "pnpm build:web && pnpm build:api",
+    "build:web": "pnpm --filter @sku-table/web build",
+    "build:api": "pnpm --filter @sku-table/api build",
+    "typecheck": "pnpm typecheck:web && pnpm typecheck:api",
+    "typecheck:web": "pnpm --filter @sku-table/web typecheck",
+    "typecheck:api": "pnpm --filter @sku-table/api typecheck"
   },
   "devDependencies": {
-    "@types/react": "^19.1.9",
-    "@types/react-dom": "^19.1.7",
-    "@vitejs/plugin-react": "^4.7.0",
-    "typescript": "~5.8.3",
-    "vite": "^7.0.6"
+    "typescript": "~5.8.3"
   }
 }

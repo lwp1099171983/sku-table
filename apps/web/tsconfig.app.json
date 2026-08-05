@@ -12,6 +12,10 @@
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@sku-table/shared": ["../../packages/shared/src/index.ts"]
+    },
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,

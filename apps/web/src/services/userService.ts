@@ -1,4 +1,4 @@
-import type { AppUser } from '../types/type'
+import type { AppUser } from '@sku-table/shared'
 import apiClient from './apiClient'
 
 export const userService = {

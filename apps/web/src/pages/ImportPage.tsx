@@ -3,7 +3,7 @@ import { Alert, Button, Card, Progress, Result, Space, Typography, Upload, messa
 import type { UploadProps } from 'antd'
 import { useState } from 'react'
 import { importService } from '../services/importService'
-import type { ImportBatch } from '../types/type'
+import type { ImportBatch } from '@sku-table/shared'
 
 export function ImportPage() {
   const [file, setFile] = useState<File | null>(null)

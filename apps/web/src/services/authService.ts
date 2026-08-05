@@ -1,4 +1,4 @@
-import type { LoginRequestDto, LoginResponseDto, MeResponseDto } from '../types/dto'
+import type { LoginRequestDto, LoginResponseDto, MeResponseDto } from '@sku-table/shared'
 import apiClient from './apiClient'
 
 const ACCESS_TOKEN_KEY = 'sku_table_access_token'

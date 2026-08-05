@@ -1,4 +1,4 @@
-import type { ImportBatchResponseDto } from '../types/dto'
+import type { ImportBatchResponseDto } from '@sku-table/shared'
 import apiClient from './apiClient'
 
 export const importService = {

@@ -1,4 +1,4 @@
-import type { ProductListQueryDto, ProductListResponseDto, UpdateInternalNoteRequestDto } from '../types/dto'
+import type { ProductListQueryDto, ProductListResponseDto, UpdateInternalNoteRequestDto } from '@sku-table/shared'
 import apiClient from './apiClient'
 
 export const productService = {

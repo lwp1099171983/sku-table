@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import type { AppUser, UserRole } from '../types/type'
+import type { AppUser, UserRole } from '@sku-table/shared'
 import { authService } from '../services/authService'
 
 interface AuthContextValue {
