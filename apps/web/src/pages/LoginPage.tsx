@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ErrorAlert } from '../components/ErrorAlert'
 import { useAuth } from '../layouts/AuthContext'
+import './LoginPage.css'
 
 interface LoginFormValues {
   email: string

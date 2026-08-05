@@ -1,0 +1,12 @@
+.work-import-grid { display: grid; grid-template-columns: minmax(220px, 280px) minmax(180px, 220px); gap: 16px; margin: 20px 0; }
+.field-label { display: grid; gap: 7px; color: var(--ant-color-text-secondary); font-size: 13px; font-weight: 600; }
+.employee-name-autocomplete { width: 100%; }
+.employee-filter-select { width: 180px; }
+.employee-date-filter { width: 170px; }
+.import-result { margin-top: 20px; }
+.work-filter-bar { margin-bottom: 12px; }
+.import-submit-block { display: flex; justify-content: flex-end; gap: 12px; width: 100%; margin-top: 22px; }
+
+@media (max-width: 800px) {
+  .work-import-grid { grid-template-columns: 1fr; }
+}

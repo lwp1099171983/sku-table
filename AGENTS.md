@@ -38,7 +38,9 @@
 │   │   │   ├── services/                 # API 客户端和业务请求封装
 │   │   │   ├── App.tsx                   # 路由入口
 │   │   │   ├── main.tsx                  # React 挂载入口
-│   │   │   └── styles.css                # 全局样式
+│   │   │   ├── styles/                   # 全局样式和 Ant Design 主题变量
+│   │   │   │   └── global.css
+│   │   │   └── ...                       # 页面组件及其同目录 CSS
 │   │   ├── Dockerfile
 │   │   ├── index.html
 │   │   ├── package.json

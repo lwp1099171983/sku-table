@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AppUser, Product } from '@sku-table/shared'
 import { productService } from '../services/productService'
 import { userService } from '../services/userService'
+import './ProductListPage.css'
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
@@ -76,8 +77,8 @@ export function ProductListPage() {
       <div className="filter-bar">
         <Space size="middle" wrap>
           <Typography.Text strong><FilterOutlined /> 筛选</Typography.Text>
-          <Select allowClear placeholder="全部上传人" style={{ width: 220 }} value={selectedUploader} onChange={(value) => { setSelectedUploader(value); setPage(1) }} options={members.map((member) => ({ value: member.id, label: member.displayName || member.email }))} />
-          <Input prefix={<SearchOutlined />} placeholder="v1.1 支持货号 / 名称搜索" disabled style={{ width: 250 }} />
+          <Select className="product-uploader-filter" allowClear placeholder="全部上传人" value={selectedUploader} onChange={(value) => { setSelectedUploader(value); setPage(1) }} options={members.map((member) => ({ value: member.id, label: member.displayName || member.email }))} />
+          <Input className="product-search-input" prefix={<SearchOutlined />} placeholder="v1.1 支持货号 / 名称搜索" disabled />
         </Space>
         <Typography.Text type="secondary">共 {total.toLocaleString()} 条商品</Typography.Text>
       </div>

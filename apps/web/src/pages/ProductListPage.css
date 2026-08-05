@@ -1,0 +1,7 @@
+.note-cell { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; padding: 6px 8px; border: 1px solid transparent; border-radius: 5px; cursor: text; }
+.note-cell:hover { border-color: var(--ant-color-border); background: var(--ant-color-fill-quaternary); }
+.empty-note { color: var(--ant-color-text-tertiary); }
+.note-edit-icon { color: var(--ant-color-text-tertiary); opacity: 0; transition: opacity .15s; }
+.note-cell:hover .note-edit-icon { opacity: 1; }
+.product-uploader-filter { width: 220px; }
+.product-search-input { width: 250px; }

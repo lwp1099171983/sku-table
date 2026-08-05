@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { EmployeeWorkBatch, EmployeeWorkItem } from '@sku-table/shared'
 import { useAuth } from '../layouts/AuthContext'
 import { employeeWorkService } from '../services/employeeWorkService'
+import './EmployeeWorkPage.css'
 
 const PAGE_SIZE = 100
 
@@ -182,7 +183,7 @@ export function EmployeeWorkPage() {
             maxLength={100}
             allowClear
             showSearch
-            style={{ width: '100%' }}
+            className="employee-name-autocomplete"
             placeholder="选择已有员工或输入新姓名"
             filterOption={(inputValue, option) => String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())}
             onChange={setEmployeeName}
@@ -205,8 +206,8 @@ export function EmployeeWorkPage() {
         <div className="section-heading"><div><Typography.Title level={4}>工作明细</Typography.Title><Typography.Text type="secondary">共 {total.toLocaleString()} 条记录</Typography.Text></div></div>
         <div className="filter-bar work-filter-bar">
           <Space size="middle" wrap>
-            <Select allowClear showSearch placeholder="全部员工" value={filterEmployee} style={{ width: 180 }} options={employeeOptions.map((name) => ({ value: name, label: name }))} onChange={(value) => { setFilterEmployee(value); setPage(1) }} />
-            <Input type="date" value={filterDate} style={{ width: 170 }} onChange={(event) => { setFilterDate(event.target.value); setPage(1) }} />
+          <Select className="employee-filter-select" allowClear showSearch placeholder="全部员工" value={filterEmployee} options={employeeOptions.map((name) => ({ value: name, label: name }))} onChange={(value) => { setFilterEmployee(value); setPage(1) }} />
+            <Input className="employee-date-filter" type="date" value={filterDate} onChange={(event) => { setFilterDate(event.target.value); setPage(1) }} />
             <Button onClick={resetFilters}>清除筛选</Button>
           </Space>
         </div>

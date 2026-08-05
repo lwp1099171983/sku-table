@@ -4,6 +4,7 @@ import type { UploadProps } from 'antd'
 import { useState } from 'react'
 import { importService } from '../services/importService'
 import type { ImportBatch } from '@sku-table/shared'
+import './ImportPage.css'
 
 export function ImportPage() {
   const [file, setFile] = useState<File | null>(null)
