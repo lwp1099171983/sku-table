@@ -65,8 +65,12 @@ echo "[2/4] 启动 PostgreSQL"
 echo "[3/4] 验证 PostgreSQL 健康、连接和持久化"
 "${SCRIPT_DIR}/verify-postgres.sh" --env-file "${ENV_FILE}" --persistence
 
-echo "[4/4] 构建并启动 API 和 Web"
-"${compose[@]}" up -d --build api web
+echo "[4/5] 构建 API 和 Web"
+"${compose[@]}" build api web
+
+echo "[5/5] 执行数据库迁移并启动 API 和 Web"
+"${compose[@]}" run --rm --no-deps api node dist/db/migrate.js
+"${compose[@]}" up -d api web
 wait_for_healthy api
 wait_for_healthy web
 "${compose[@]}" exec -T api node -e "const net=require('node:net');const socket=net.createConnection({host:'postgres',port:5432});socket.setTimeout(5000);socket.on('connect',()=>{socket.end();process.exit(0)});socket.on('timeout',()=>process.exit(1));socket.on('error',()=>process.exit(1))"

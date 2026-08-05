@@ -59,7 +59,7 @@ wait_for_postgres
 "${compose[@]}" run --rm --no-deps postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -v ON_ERROR_STOP=1 -h postgres -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1;"'
 
 published_port="$("${compose[@]}" port postgres 5432 2>/dev/null || true)"
-if [[ -n "${published_port}" ]]; then
+if [[ -n "${published_port}" && "${published_port}" != "invalid IP:0" ]]; then
   echo "PostgreSQL 5432 端口不应发布到宿主机：${published_port}" >&2
   exit 1
 fi

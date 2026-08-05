@@ -11,6 +11,7 @@ services:
     build:
       context: ../..
       dockerfile: apps/web/Dockerfile
+      network: host
     ports:
       - "${HTTP_BIND_ADDRESS:-0.0.0.0}:${HTTP_PORT:-80}:80"
     depends_on:
@@ -31,6 +32,7 @@ services:
     build:
       context: ../..
       dockerfile: apps/api/Dockerfile
+      network: host
     environment:
       NODE_ENV: production
       API_PORT: 3000
