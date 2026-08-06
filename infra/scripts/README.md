@@ -12,8 +12,9 @@
 
 ## 已有脚本
 
-- `deploy.sh`：先启动和验收 PostgreSQL，再构建并启动 API/Web；
-- `verify-postgres.sh`：验证 PostgreSQL 健康、连接、端口隔离，可选执行重启后持久化检查。
+- `deploy.sh`：先启动和验收 PostgreSQL，再构建并启动 API/Web；默认不重启 PostgreSQL，首次部署或数据库/卷变更时加 `--persistence` 验证数据卷持久化；
+- `remote-deploy.sh`：发布时执行备份、构建、迁移、启动与健康检查，`--persistence` 可选透传给 `deploy.sh` 做持久化验收；
+- `verify-postgres.sh`：验证 PostgreSQL 健康、连接、端口隔离，`--persistence` 可选执行重启后持久化检查。
 
 ## 发布配置（.deploy.env）
 

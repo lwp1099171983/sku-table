@@ -6,10 +6,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${PROJECT_ROOT}/infra/docker/docker-compose.yml"
 ENV_FILE="${PROJECT_ROOT}/infra/docker/.env"
+VERIFY_PERSISTENCE=false
 
-if [[ $# -gt 0 ]]; then
-  ENV_FILE="$1"
-fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --persistence)
+      # 重启 PostgreSQL 验证数据卷持久化（首次部署或数据库/卷变更时启用）
+      VERIFY_PERSISTENCE=true
+      shift
+      ;;
+    *)
+      ENV_FILE="$1"
+      shift
+      ;;
+  esac
+done
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "未找到 Docker，请先在服务器安装 Docker Engine 和 Compose 插件。" >&2
@@ -63,7 +74,11 @@ echo "[2/4] 启动 PostgreSQL"
 "${compose[@]}" up -d postgres
 
 echo "[3/4] 验证 PostgreSQL 健康、连接和持久化"
-"${SCRIPT_DIR}/verify-postgres.sh" --env-file "${ENV_FILE}" --persistence
+if [[ "${VERIFY_PERSISTENCE}" == "true" ]]; then
+  "${SCRIPT_DIR}/verify-postgres.sh" --env-file "${ENV_FILE}" --persistence
+else
+  "${SCRIPT_DIR}/verify-postgres.sh" --env-file "${ENV_FILE}"
+fi
 
 echo "[4/5] 构建 API 和 Web"
 "${compose[@]}" build api web

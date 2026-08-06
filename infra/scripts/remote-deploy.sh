@@ -1,12 +1,26 @@
 #!/usr/bin/env bash
 
 # 服务器端部署脚本（随发布包上传，在 /opt/sku-table/current 下执行）
-# 用法：./infra/scripts/remote-deploy.sh <版本号，如 0.1.4>
+# 用法：./infra/scripts/remote-deploy.sh <版本号，如 0.1.4> [--persistence]
 # 步骤：数据库备份 → 构建镜像 → 迁移 → 启动 → seed（如已配置）→ 健康检查
 
 set -euo pipefail
 
-VERSION="${1:?用法：remote-deploy.sh <版本号>}"
+VERIFY_PERSISTENCE=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --persistence)
+      # 重启 PostgreSQL 验证数据卷持久化（涉及数据库/卷变更时启用）
+      VERIFY_PERSISTENCE=true
+      shift
+      ;;
+    *)
+      VERSION="${1:-}"
+      shift
+      ;;
+  esac
+done
+VERSION="${VERSION:?用法：remote-deploy.sh <版本号> [--persistence]}"
 TAG="v${VERSION}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,7 +65,11 @@ BACKUP_FILE="${BACKUP_DIR}/pre-${TAG}-$(date +%F_%H%M%S).sql"
 echo "[backup] 已备份数据库：${BACKUP_FILE}"
 
 # 2. 构建镜像、执行迁移并启动服务（复用 deploy.sh）
-"${SCRIPT_DIR}/deploy.sh" "${ENV_FILE}"
+if [[ "${VERIFY_PERSISTENCE}" == "true" ]]; then
+  "${SCRIPT_DIR}/deploy.sh" --persistence "${ENV_FILE}"
+else
+  "${SCRIPT_DIR}/deploy.sh" "${ENV_FILE}"
+fi
 
 # 3. seed 初始化（幂等；未配置 SEED_USER_PASSWORD 时跳过，避免意外修改 owner 密码）
 if [[ -n "${SEED_USER_EMAIL}" && -n "${SEED_USER_PASSWORD}" ]]; then

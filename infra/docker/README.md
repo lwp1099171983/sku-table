@@ -22,10 +22,12 @@
 4. 执行部署脚本：
 
    ```bash
-   ./infra/scripts/deploy.sh
+   ./infra/scripts/deploy.sh --persistence
    ```
 
-脚本会先启动 PostgreSQL，验证容器健康、数据库可连接、5432 未发布到宿主机，并通过容器重启验证数据卷持久化。验收通过后才会启动 API 和 Web。
+脚本会先启动 PostgreSQL，验证容器健康、数据库可连接、5432 未发布到宿主机；加 `--persistence` 时会通过容器重启验证数据卷持久化（首次部署、数据库或卷变更时建议启用）。验收通过后才会启动 API 和 Web。
+
+日常代码发布（`remote-deploy.sh`）默认不重启 PostgreSQL，发布期间数据库保持可用；涉及数据库结构或数据卷变更时，在发布命令后加 `--persistence` 再执行持久化验收。
 
 ## 复查 PostgreSQL
 
