@@ -36,6 +36,7 @@ POSTGRES_DB="$(read_env POSTGRES_DB)"
 SEED_USER_EMAIL="$(read_env SEED_USER_EMAIL)"
 SEED_USER_PASSWORD="$(read_env SEED_USER_PASSWORD)"
 SEED_STUDIO_NAME="$(read_env SEED_STUDIO_NAME)"
+APP_DOMAIN="$(read_env APP_DOMAIN)"
 
 echo "==== 远程部署 ${TAG} ===="
 echo "项目目录：${PROJECT_ROOT}"
@@ -65,7 +66,12 @@ fi
 # 4. 最终健康检查
 HTTP_PORT="$(read_env HTTP_PORT)"
 HTTP_PORT="${HTTP_PORT:-80}"
-PAGE_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${HTTP_PORT}/" || echo 000)"
-API_HEALTH="$(curl -s "http://127.0.0.1:${HTTP_PORT}/api/health" || echo 'unreachable')"
+if [[ -n "${APP_DOMAIN}" ]]; then
+  PAGE_STATUS="$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${APP_DOMAIN}" "http://127.0.0.1:${HTTP_PORT}/" || echo 000)"
+  API_HEALTH="$(curl -s -H "Host: ${APP_DOMAIN}" "http://127.0.0.1:${HTTP_PORT}/api/health" || echo 'unreachable')"
+else
+  PAGE_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${HTTP_PORT}/" || echo 000)"
+  API_HEALTH="$(curl -s "http://127.0.0.1:${HTTP_PORT}/api/health" || echo 'unreachable')"
+fi
 echo "[verify] 页面 HTTP ${PAGE_STATUS}，API 健康检查：${API_HEALTH}"
 echo "==== 部署完成：${TAG} ===="

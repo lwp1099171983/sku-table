@@ -74,7 +74,7 @@ echo "[5/5] 执行数据库迁移并启动 API 和 Web"
 wait_for_healthy api
 wait_for_healthy web
 "${compose[@]}" exec -T api node -e "const net=require('node:net');const socket=net.createConnection({host:'postgres',port:5432});socket.setTimeout(5000);socket.on('connect',()=>{socket.end();process.exit(0)});socket.on('timeout',()=>process.exit(1));socket.on('error',()=>process.exit(1))"
-"${compose[@]}" exec -T web wget -qO- http://127.0.0.1/api/health
+"${compose[@]}" exec -T web wget -qO- http://api:3000/api/health
 echo
 "${compose[@]}" ps
 

@@ -14,13 +14,16 @@ services:
       network: host
     ports:
       - "${HTTP_BIND_ADDRESS:-0.0.0.0}:${HTTP_PORT:-80}:80"
+    environment:
+      # 域名备案通过后填写（如 sku.example.com）；未填写时允许 IP 直访
+      APP_DOMAIN: ${APP_DOMAIN:-}
     depends_on:
       api:
         condition: service_healthy
     networks:
       - app-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://api:3000/api/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
