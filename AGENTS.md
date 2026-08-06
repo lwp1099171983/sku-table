@@ -23,66 +23,70 @@
         └─ PostgreSQL（仅内部网络访问）
 ```
 
-文档维护约定：需求变更先更新需求文档；技术方案变更同步更新技术选型文档；任务状态和排期更新任务拆分文档。
+文档维护约定：需求变更先更新需求文档；技术方案变更同步更新技术选型文档；任务状态和排期更新任务拆分文档；新增、移动或删除目录/文件时，必须同步更新本结构地图和 `docs/04-项目结构.md`。
 
 ## 项目结构地图
 
 ```text
 .
 ├── apps/
-│   ├── web/                              # React/Vite 前端应用
+│   ├── web/                        # React/Vite 前端
 │   │   ├── src/
-│   │   │   ├── components/               # 可复用页面组件
-│   │   │   ├── layouts/                  # 应用布局、认证上下文
-│   │   │   ├── pages/                    # 登录、员工工作记录等页面
-│   │   │   ├── services/                 # API 客户端和业务请求封装
-│   │   │   ├── App.tsx                   # 路由入口
-│   │   │   ├── main.tsx                  # React 挂载入口
-│   │   │   ├── styles/                   # 全局样式和 Ant Design 主题变量
-│   │   │   │   └── global.css
-│   │   │   └── ...                       # 页面组件及其同目录 CSS
-│   │   ├── Dockerfile
+│   │   │   ├── App.tsx             # 路由入口（页面与布局的挂载点）
+│   │   │   ├── main.tsx            # React 挂载入口
+│   │   │   ├── pages/              # 页面组件（含同目录 CSS）
+│   │   │   ├── layouts/            # 应用布局、认证/主题上下文
+│   │   │   ├── components/         # 可复用组件
+│   │   │   ├── services/           # API 客户端和业务请求封装
+│   │   │   ├── hooks/              # 自定义 hooks
+│   │   │   ├── constants/          # 前端常量
+│   │   │   └── styles/             # 全局样式和 Ant Design 主题
+│   │   ├── public/templates/       # Excel 导入模板
 │   │   ├── index.html
-│   │   ├── package.json
 │   │   └── vite.config.ts
-│   └── api/                              # Hono.js/Node.js 后端应用
+│   └── api/                        # Hono.js/Node.js 后端
 │       ├── src/
-│       │   ├── config/                   # 环境变量和运行时配置
-│       │   ├── db/                       # 数据库客户端、schema、迁移、seed
-│       │   │   └── migrations/           # SQL 数据库迁移
-│       │   ├── middleware/               # 错误处理、认证等通用中间件
-│       │   ├── modules/                  # 按领域拆分的业务模块
-│       │   │   ├── auth/                 # 用户认证、令牌和权限
-│       │   │   └── employee-work/        # 员工工作记录解析和数据访问
-│       │   ├── routes/                   # HTTP 路由
-│       │   ├── app.ts                    # Hono 应用组装
-│       │   └── server.ts                 # Node.js 服务入口
-│       ├── Dockerfile
-│       └── package.json
+│       │   ├── app.ts              # Hono 应用组装（入口，挂载全部路由）
+│       │   ├── server.ts           # Node 服务启动入口
+│       │   ├── routes/             # HTTP 路由层（auth/employeeWork/pricing/products/studios/imports/users/health）
+│       │   ├── modules/            # 业务层，按领域拆分（repository/service/parser）
+│       │   │   ├── auth/           # 认证、令牌、RBAC
+│       │   │   ├── employee-work/  # 员工工作记录
+│       │   │   ├── pricing/        # 定价
+│       │   │   ├── products/       # 产品
+│       │   │   └── studios/        # 工作室
+│       │   ├── middleware/         # 错误处理、认证等通用中间件
+│       │   ├── config/             # 环境变量和运行时配置
+│       │   └── db/                 # client、schema、migrate、seed、migrations
+│       ├── package.json
+│       └── Dockerfile
 ├── packages/
-│   └── shared/                           # 前后端共享 DTO、领域类型和常量
-│       ├── src/
-│       │   ├── dto.ts
-│       │   ├── type.ts
-│       │   └── index.ts
-│       └── package.json
-├── infra/                                # 部署和运维配置
-│   ├── docker/                           # Docker Compose 和环境变量示例
-│   ├── nginx/                            # 静态文件和 /api 反向代理
-│   ├── scripts/                          # 部署、健康检查等脚本
-│   └── legacy/supabase/                  # 历史兼容迁移材料，不参与主流程
-├── docs/                                 # 需求、技术、任务和结构文档
-│   ├── 01-需求文档.md
-│   ├── 02-技术选型文档.md
-│   ├── 03-任务拆分.md
-│   └── 04-项目结构.md
-├── .agents/skills/                       # 项目辅助技能及其配置
-├── .scratch/                             # 需求拆分和临时工作材料
-├── AGENTS.md                             # Agent 工作规范和本结构地图
-├── README.md                             # 项目介绍和本地开发说明
-├── package.json                          # 根工作区脚本
-├── pnpm-workspace.yaml                   # pnpm workspace 配置
-└── pnpm-lock.yaml                        # 依赖锁定文件
+│   └── shared/                     # 前后端共享 DTO、领域类型、常量
+│       └── src/                    # index.ts / dto.ts / type.ts
+├── infra/                          # 部署和运维
+│   ├── docker/                     # Docker Compose 和环境变量示例
+│   ├── nginx/                      # 静态文件与 /api 反向代理
+│   ├── scripts/                    # 部署、备份、健康检查脚本
+│   └── legacy/supabase/            # 历史兼容迁移材料（不参与主流程）
+├── docs/                           # 需求、技术、任务和结构文档
+├── .agents/skills/                 # 项目辅助技能
+├── .scratch/                       # 需求拆分和临时材料
+├── AGENTS.md                       # 本规范与结构地图
+├── README.md                       # 项目介绍和本地开发说明
+├── package.json                    # 根工作区脚本（pnpm）
+├── pnpm-workspace.yaml             # pnpm workspace 配置
+└── pnpm-lock.yaml                  # 依赖锁定文件
 ```
 
-结构地图不列出 `node_modules`、`dist`、本地 `.env` 和其他构建产物；这些文件不应作为源码修改入口。
+## 快速导航
+
+| 任务 | 位置 |
+|---|---|
+| 新增/修改前端页面 | `apps/web/src/pages` + 对应 `services/` |
+| 新增/修改 API | `apps/api/src/routes` + 对应 `modules/` |
+| 认证与权限 | `apps/api/src/modules/auth`、`routes/auth.ts`、`layouts/AuthContext.tsx` |
+| 数据库变更 | `apps/api/src/db`（schema + migrations + seed） |
+| 前后端共享类型 | `packages/shared/src` |
+| 部署与运维 | `infra/` |
+
+结构地图不列出 `node_modules`、`dist`、`.pnpm-store`、本地 `.env` 和其他构建产物；这些文件不应作为源码修改入口。
