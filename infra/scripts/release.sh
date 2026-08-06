@@ -2,8 +2,8 @@
 
 # 一键发布脚本（在本地开发机执行）
 # 用法：
-#   ./infra/scripts/release.sh 0.1.4              # 完整发布：改版本号 → 打标签 → 推 GitHub → 部署服务器
-#   ./infra/scripts/release.sh 0.1.4 --skip-git   # 跳过 git 操作，仅打包并部署当前代码（用于重试/演练）
+#   ./infra/scripts/release.sh 0.1.4             # 完整发布：改版本号 → 打标签 → 推 GitHub → 部署服务器
+#   ./infra/scripts/release.sh --skip-git 0.1.4  # 跳过 git 操作，仅打包并部署当前代码（用于重试/演练）
 #
 # 服务器信息从 infra/scripts/.deploy.env 读取（不入库），示例见 .deploy.env.example
 

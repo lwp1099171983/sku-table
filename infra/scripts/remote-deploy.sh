@@ -11,8 +11,10 @@ TAG="v${VERSION}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+# current 是软链，PROJECT_ROOT/.. 会被物理解析到 releases 目录，因此基于物理路径计算项目根
+SKU_TABLE_ROOT="$(dirname "$(dirname "$(cd -P "${PROJECT_ROOT}" && pwd)")")"
 COMPOSE_FILE="${PROJECT_ROOT}/infra/docker/docker-compose.yml"
-ENV_FILE="${PROJECT_ROOT}/../state/.env"
+ENV_FILE="${SKU_TABLE_ROOT}/state/.env"
 COMPOSE=(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}")
 
 if [[ ! -f "${ENV_FILE}" ]]; then
@@ -42,7 +44,7 @@ echo "==== 远程部署 ${TAG} ===="
 echo "项目目录：${PROJECT_ROOT}"
 
 # 1. 数据库备份（任何迁移或重建之前执行）
-BACKUP_DIR="${PROJECT_ROOT}/../backups"
+BACKUP_DIR="${SKU_TABLE_ROOT}/backups"
 mkdir -p "${BACKUP_DIR}"
 BACKUP_FILE="${BACKUP_DIR}/pre-${TAG}-$(date +%F_%H%M%S).sql"
 "${COMPOSE[@]}" exec -T postgres pg_dump -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" > "${BACKUP_FILE}"
