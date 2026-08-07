@@ -1,10 +1,11 @@
 import { DeleteOutlined, PlusOutlined, ShopOutlined, UserAddOutlined } from '@ant-design/icons'
-import { App as AntdApp, Button, Card, Empty, Form, Input, List, Modal, Popconfirm, Select, Space, Switch, Table, Typography } from 'antd'
+import { Alert, App as AntdApp, AutoComplete, Button, Card, Empty, Form, Input, List, Modal, Popconfirm, Select, Space, Switch, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Shop, ShopMemberDto } from '@sku-table/shared'
 import { APP_LABELS } from '../constants/app'
 import { useAuth } from '../layouts/AuthContext'
+import { adminUsersService } from '../services/adminUsersService'
 import { shopsService } from '../services/shopsService'
 import './ShopMemberPage.css'
 
@@ -37,6 +38,7 @@ export function ShopMemberPage() {
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false)
   const [addMemberForm] = Form.useForm<AddMemberFormValues>()
   const [isSaving, setIsSaving] = useState(false)
+  const [accountOptions, setAccountOptions] = useState<Array<{ value: string; label: string }>>([])
 
   // 默认选中第一个店铺（管理员可切换任意店铺）
   const selectedShop = useMemo(
@@ -66,6 +68,29 @@ export function ShopMemberPage() {
       void loadMembers(selectedShopId)
     }
   }, [selectedShopId, loadMembers])
+
+  const loadAccountOptions = useCallback(async () => {
+    try {
+      const users = await adminUsersService.listUsers()
+      setAccountOptions(users.map((user) => ({
+        value: user.email,
+        label: user.displayName ? `${user.email}（${user.displayName}）${user.isActive ? '' : '，已停用'}` : `${user.email}${user.isActive ? '' : '，已停用'}`,
+      })))
+    } catch {
+      // 账号列表加载失败时仍允许手动输入新邮箱
+    }
+  }, [])
+
+  function openAddMemberModal() {
+    setIsAddMemberModalOpen(true)
+    void loadAccountOptions()
+  }
+
+  // 监听邮箱输入，判断是否为已有账号（用于隐藏密码字段）
+  const watchedEmail = Form.useWatch('email', addMemberForm)
+  const isExistingAccount = accountOptions.some(
+    (option) => option.value.toLowerCase() === (watchedEmail ?? '').trim().toLowerCase(),
+  )
 
   // 管理员看全部店铺；非管理员无权限进入此页（路由已拦截，兜底）
   if (!isAdmin) {
@@ -99,7 +124,7 @@ export function ShopMemberPage() {
       await shopsService.addMember(selectedShopId, {
         email: values.email.trim(),
         displayName: values.displayName?.trim() || undefined,
-        password: values.password || undefined,
+        password: isExistingAccount ? undefined : values.password,
         roles: values.roles,
       })
       message.success('成员已添加。')
@@ -272,7 +297,7 @@ export function ShopMemberPage() {
           className="member-card"
           bordered={false}
           title={selectedShop ? `成员管理：${selectedShop.name}` : '成员管理'}
-          extra={<Button type="primary" icon={<UserAddOutlined />} disabled={!selectedShopId} onClick={() => setIsAddMemberModalOpen(true)}>添加成员</Button>}
+          extra={<Button type="primary" icon={<UserAddOutlined />} disabled={!selectedShopId} onClick={openAddMemberModal}>添加成员</Button>}
         >
           <div className="table-wrap">
             <Table rowKey={(record) => record.user.id} columns={columns} dataSource={members} loading={loadingMembers} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该店铺还没有成员" /> }} scroll={{ x: 900 }} pagination={false} />
@@ -307,14 +332,24 @@ export function ShopMemberPage() {
       >
         <Form form={addMemberForm} layout="vertical" requiredMark={false}>
           <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email', message: '请输入有效邮箱' }]}>
-            <Input placeholder="name@example.com" autoComplete="off" />
+            <AutoComplete
+              options={accountOptions}
+              placeholder="搜索已有账号，或输入新邮箱"
+              filterOption={(inputValue, option) => String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())}
+            />
           </Form.Item>
-          <Form.Item label="姓名（可选）" name="displayName">
-            <Input placeholder="用于工作台展示" maxLength={100} />
-          </Form.Item>
-          <Form.Item label="密码（新用户必填，至少 8 位）" name="password" rules={[{ min: 8, message: '密码至少需要 8 个字符' }]}>
-            <Input.Password placeholder="新用户请设置密码" autoComplete="new-password" />
-          </Form.Item>
+          {isExistingAccount ? (
+            <Alert type="info" showIcon message="该账号已存在，将直接加入店铺，无需重复设置密码。" style={{ marginBottom: 24 }} />
+          ) : (
+            <>
+              <Form.Item label="姓名（可选）" name="displayName">
+                <Input placeholder="用于工作台展示" maxLength={100} />
+              </Form.Item>
+              <Form.Item label="密码（新用户必填，至少 8 位）" name="password" rules={[{ required: true, message: '新用户必须设置密码' }, { min: 8, message: '密码至少需要 8 个字符' }]}>
+                <Input.Password placeholder="新用户请设置密码" autoComplete="new-password" />
+              </Form.Item>
+            </>
+          )}
           <Form.Item label="角色" name="roles" rules={[{ required: true, message: '请至少选择一个角色' }]}>
             <Select mode="multiple" options={ROLE_OPTIONS} placeholder="组长 / 客服" />
           </Form.Item>
