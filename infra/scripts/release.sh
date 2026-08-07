@@ -96,7 +96,8 @@ echo "[upload] 已上传到 ${REMOTE}:${PROJECT_DIR}/releases/"
 ssh "${SSH_ARGS[@]}" "${REMOTE}" \
   "set -euo pipefail
    cd ${PROJECT_DIR}/releases
-   mkdir -p \"v${VERSION}\"
+   # 解压前清空目标目录，避免旧版本残留文件混入新构建
+   rm -rf \"v${VERSION}\" && mkdir -p \"v${VERSION}\"
    tar -xzf \"sku-table-${TAG}.tar.gz\" -C \"v${VERSION}\"
    ln -sfn \"${PROJECT_DIR}/releases/v${VERSION}\" \"${PROJECT_DIR}/current\"
    cd \"${PROJECT_DIR}/current\"
