@@ -4,12 +4,13 @@ import { z } from 'zod'
 import type { ShopMemberDto, UserRole } from '@sku-table/shared'
 import { type AuthEnv, requireAuth, requirePermission, requireShopPermission } from '../modules/auth/auth.middleware.js'
 import { BCRYPT_ROUNDS } from '../modules/auth/constants.js'
-import { createUser, findUserByEmail } from '../modules/auth/auth.repository.js'
+import { findUserByEmail } from '../modules/auth/auth.repository.js'
 import { readBody } from './helpers.js'
 import { MEMBER_ASSIGNABLE_PERMISSIONS } from '../modules/auth/rbac.js'
 import {
-  addUserToShopWithRoles,
+  createShopMember,
   createShop,
+  deleteShop,
   getMemberDirectPermissions,
   isShopMember,
   isValidMemberRoleCode,
@@ -18,6 +19,8 @@ import {
   setShopMemberActive,
   setShopMemberPermission,
   setShopMemberRoles,
+  ShopMemberError,
+  ShopNameConflictError,
 } from '../modules/shops/shop.repository.js'
 import type { ShopMemberRecord } from '../modules/shops/shop.repository.js'
 
@@ -72,8 +75,26 @@ shopRoutes.post('/', requireAuth, requirePermission('shop.manage'), async (conte
     return context.json({ code: 'VALIDATION_ERROR', message: '店铺名称不能为空，且长度不能超过 100 个字符。' }, 400)
   }
 
-  const shop = await createShop(body.name)
-  return context.json({ shop }, 201)
+  try {
+    const shop = await createShop(body.name)
+    return context.json({ shop }, 201)
+  } catch (error) {
+    if (error instanceof ShopNameConflictError) {
+      return context.json({ code: 'SHOP_EXISTS', message: error.message }, 409)
+    }
+    throw error
+  }
+})
+
+// 删除店铺（管理员；级联删除成员、员工、工作记录与台账）
+shopRoutes.delete('/:shopId', requireAuth, requirePermission('shop.manage'), async (context) => {
+  const shopId = context.req.param('shopId')
+
+  const deleted = await deleteShop(shopId)
+  if (!deleted) {
+    return context.json({ code: 'SHOP_NOT_FOUND', message: '店铺不存在。' }, 404)
+  }
+  return context.body(null, 204)
 })
 
 // 查看店铺成员列表
@@ -95,29 +116,30 @@ shopRoutes.post('/:shopId/members', requireShopPermission('member.manage'), asyn
   }
 
   const roles: UserRole[] = [...new Set<UserRole>(body.roles ?? ['customer'])]
-  const existing = await findUserByEmail(body.email)
-  let userId: string
+  // 新用户必须设置密码；已存在用户（含并发下刚注册的）复用账号，不需要密码
+  if (!body.password && !(await findUserByEmail(body.email))) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '新用户必须设置密码，且密码至少需要 8 个字符。' }, 400)
+  }
+  const passwordHash = body.password ? await bcrypt.hash(body.password, BCRYPT_ROUNDS) : null
 
-  if (existing) {
-    if (await isShopMember(shopId, existing.id)) {
-      return context.json({ code: 'MEMBER_EXISTS', message: '该用户已经是此店铺成员。' }, 409)
-    }
-    userId = existing.id
-  } else {
-    if (!body.password) {
-      return context.json({ code: 'VALIDATION_ERROR', message: '新用户必须设置密码，且密码至少需要 8 个字符。' }, 400)
-    }
-    const passwordHash = await bcrypt.hash(body.password, BCRYPT_ROUNDS)
-    const created = await createUser({
+  let userId: string
+  try {
+    const result = await createShopMember({
+      shopId,
       email: body.email,
       passwordHash,
       displayName: body.displayName ?? null,
-      isAdmin: false,
+      roleCodes: roles,
     })
-    userId = created.id
+    userId = result.userId
+  } catch (error) {
+    if (error instanceof ShopMemberError) {
+      const status = error.code === 'MEMBER_EXISTS' ? 409 : 404
+      return context.json({ code: error.code, message: error.message }, status)
+    }
+    throw error
   }
 
-  await addUserToShopWithRoles(shopId, userId, roles)
   const member = (await listShopMembers(shopId)).find((item) => item.id === userId)
   if (!member) {
     return context.json({ code: 'MEMBER_NOT_FOUND', message: '成员添加失败。' }, 500)

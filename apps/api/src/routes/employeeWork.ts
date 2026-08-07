@@ -134,7 +134,7 @@ employeeWorkRoutes.post('/import', requireAuth, requirePermission('employee_work
     return context.json({ code: 'VALIDATION_ERROR', message: '请先选择具体店铺再导入员工工作数据。' }, 400)
   }
 
-  const batch = await createEmployeeWorkImport({
+  const { batch, reused } = await createEmployeeWorkImport({
     shopId,
     employeeName,
     workDate,
@@ -143,7 +143,7 @@ employeeWorkRoutes.post('/import', requireAuth, requirePermission('employee_work
     items,
   })
 
-  return context.json({ batch, importedRows: items.length }, 201)
+  return context.json({ batch, importedRows: batch.totalRows, reused }, reused ? 200 : 201)
 })
 
 // 单行删除：仅允许删除自己有删除权限的店铺数据

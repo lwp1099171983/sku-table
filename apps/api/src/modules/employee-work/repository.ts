@@ -3,6 +3,7 @@ import type { SQL } from 'drizzle-orm'
 import type { EmployeeWorkListQueryDto } from '@sku-table/shared'
 import { db } from '../../db/client.js'
 import { employeeWorkBatches, employeeWorkItems, employees, shops } from '../../db/schema.js'
+import { hashEmployeeWorkItems } from '../imports/idempotency.js'
 import type { ParsedEmployeeWorkItem } from './parser.js'
 
 const INSERT_CHUNK_SIZE = 1_000
@@ -37,7 +38,27 @@ export async function createEmployeeWorkImport(input: {
   uploadedBy: string
   items: ParsedEmployeeWorkItem[]
 }) {
-  const batch = await db.transaction(async (tx) => {
+  // 幂等指纹：基于解析后的业务数据（排除自动序号，含员工/日期维度），同一份数据重复导入时命中
+  const idempotencyKey = hashEmployeeWorkItems({
+    shopId: input.shopId,
+    employeeName: input.employeeName,
+    workDate: input.workDate,
+    items: input.items,
+  })
+
+  const { batch, reused } = await db.transaction(async (tx) => {
+    // 幂等命中：同店铺+同文件指纹的批次已存在时直接复用，不再写入
+    const [existingBatch] = await tx.select()
+      .from(employeeWorkBatches)
+      .where(and(
+        eq(employeeWorkBatches.shopId, input.shopId),
+        eq(employeeWorkBatches.idempotencyKey, idempotencyKey),
+      ))
+      .limit(1)
+    if (existingBatch) {
+      return { batch: existingBatch, reused: true }
+    }
+
     // 按 (shopId, lower(name)) 幂等 upsert 员工档案，拿到 employeeId
     const [createdEmployee] = await tx.insert(employees)
       .values({ shopId: input.shopId, name: input.employeeName })
@@ -60,6 +81,7 @@ export async function createEmployeeWorkImport(input: {
       employeeId = existingEmployee.id
     }
 
+    // 幂等插入：并发重试同一文件时冲突，回查已有批次
     const [createdBatch] = await tx.insert(employeeWorkBatches).values({
       shopId: input.shopId,
       employeeId,
@@ -67,17 +89,29 @@ export async function createEmployeeWorkImport(input: {
       workDate: input.workDate,
       fileName: input.fileName,
       uploadedBy: input.uploadedBy,
+      idempotencyKey,
       totalRows: input.items.length,
-    }).returning()
+    }).onConflictDoNothing().returning()
 
-    if (!createdBatch) {
-      throw new Error('员工工作批次创建失败。')
+    let batch = createdBatch
+    if (!batch) {
+      const [existing] = await tx.select()
+        .from(employeeWorkBatches)
+        .where(and(
+          eq(employeeWorkBatches.shopId, input.shopId),
+          eq(employeeWorkBatches.idempotencyKey, idempotencyKey),
+        ))
+        .limit(1)
+      if (!existing) {
+        throw new Error('员工工作批次创建失败。')
+      }
+      batch = existing
     }
 
     for (let start = 0; start < input.items.length; start += INSERT_CHUNK_SIZE) {
       const chunk = input.items.slice(start, start + INSERT_CHUNK_SIZE)
       await tx.insert(employeeWorkItems).values(chunk.map((item) => ({
-        batchId: createdBatch.id,
+        batchId: batch.id,
         shopId: input.shopId,
         seq: item.seq,
         sku: item.sku,
@@ -89,10 +123,10 @@ export async function createEmployeeWorkImport(input: {
       })))
     }
 
-    return createdBatch
+    return { batch, reused: false }
   })
 
-  return toPublicBatch(batch, await getShopName(batch.shopId))
+  return { batch: toPublicBatch(batch, await getShopName(batch.shopId)), reused }
 }
 
 // 列表：shopIds 为 null 表示不限店铺（管理员"全部"视图）
@@ -231,27 +265,23 @@ export async function rollbackEmployeeWorkBatch(batchId: string, userId: string)
   }
 }
 
-// 硬删除明细并同步扣减批次 total_rows（不低于 0），返回删除条数
+// 硬删除明细并同步扣减批次 total_rows（不低于 0），返回实际删除条数
+// 用 DELETE ... RETURNING 在事务内拿到真实删除行，避免并发重复删除时按"预查询行数"重复扣减
 async function deleteItemsByIds(ids: number[], shopIds: string[] | null) {
   const scope = shopIds ? inArray(employeeWorkItems.shopId, shopIds) : undefined
-  const targets = await db.select({
-    id: employeeWorkItems.id,
-    batchId: employeeWorkItems.batchId,
-  })
-    .from(employeeWorkItems)
-    .where(and(inArray(employeeWorkItems.id, ids), scope))
 
-  if (targets.length === 0) {
-    return 0
-  }
+  return db.transaction(async (tx) => {
+    const deletedRows = await tx.delete(employeeWorkItems)
+      .where(and(inArray(employeeWorkItems.id, ids), scope))
+      .returning({ batchId: employeeWorkItems.batchId })
 
-  await db.transaction(async (tx) => {
-    await tx.delete(employeeWorkItems)
-      .where(and(inArray(employeeWorkItems.id, targets.map((row) => row.id)), scope))
+    if (deletedRows.length === 0) {
+      return 0
+    }
 
-    // 按批次统计删除数并扣减 total_rows
+    // 按批次统计实际删除数并扣减 total_rows
     const perBatch = new Map<string, number>()
-    for (const row of targets) {
+    for (const row of deletedRows) {
       perBatch.set(row.batchId, (perBatch.get(row.batchId) ?? 0) + 1)
     }
     for (const [batchId, delta] of perBatch) {
@@ -262,9 +292,9 @@ async function deleteItemsByIds(ids: number[], shopIds: string[] | null) {
         })
         .where(eq(employeeWorkBatches.id, batchId))
     }
-  })
 
-  return targets.length
+    return deletedRows.length
+  })
 }
 
 export async function deleteEmployeeWorkItem(id: number, shopIds: string[] | null) {

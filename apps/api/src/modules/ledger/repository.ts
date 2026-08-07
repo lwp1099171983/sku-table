@@ -3,6 +3,7 @@ import type { SQL } from 'drizzle-orm'
 import type { LedgerListQueryDto, LedgerStats, UserRole } from '@sku-table/shared'
 import { db } from '../../db/client.js'
 import { ledgerBatches, ledgerItems, shopMemberRoles, shopMembers, shops } from '../../db/schema.js'
+import { hashLedgerItems } from '../imports/idempotency.js'
 import type { ParsedLedgerItem } from './parser.js'
 
 const INSERT_CHUNK_SIZE = 1_000
@@ -107,26 +108,49 @@ export async function createLedgerImport(input: {
     byShop.set(item.shopName, list)
   }
 
-  const batches = await db.transaction(async (tx) => {
+  // 幂等指纹：基于解析后的业务数据（排除自动序号），事务外计算以缩短持锁时间
+  const fingerprints = new Map<string, string>()
+  for (const [shopName, shopItems] of byShop) {
+    fingerprints.set(shopName, hashLedgerItems(shopItems))
+  }
+
+  const { batches, reused } = await db.transaction(async (tx) => {
     const results: Awaited<ReturnType<typeof toPublicBatch>>[] = []
+    let reusedCount = 0
 
     for (const [shopName, shopItems] of byShop) {
       const shopId = await findOrCreateShop(tx, shopName, input.importer)
-      const [batch] = await tx.insert(ledgerBatches).values({
+      const idempotencyKey = fingerprints.get(shopName) ?? ''
+      // 幂等插入：同店铺+同文件指纹的批次已存在时复用，不再写入明细
+      const [createdBatch] = await tx.insert(ledgerBatches).values({
         shopId,
         fileName: input.fileName,
         uploadedBy: input.uploadedBy,
+        idempotencyKey,
         totalRows: shopItems.length,
-      }).returning()
+      }).onConflictDoNothing().returning()
 
-      if (!batch) {
-        throw new Error('台账批次创建失败。')
+      if (!createdBatch) {
+        // 并发冲突时回查已有批次（与店铺自动创建同模式）
+        const [existing] = await tx.select()
+          .from(ledgerBatches)
+          .where(and(
+            eq(ledgerBatches.shopId, shopId),
+            eq(ledgerBatches.idempotencyKey, idempotencyKey),
+          ))
+          .limit(1)
+        if (!existing) {
+          throw new Error('台账批次创建失败。')
+        }
+        results.push(toPublicBatch(existing, shopName))
+        reusedCount += 1
+        continue
       }
 
       for (let start = 0; start < shopItems.length; start += INSERT_CHUNK_SIZE) {
         const chunk = shopItems.slice(start, start + INSERT_CHUNK_SIZE)
         await tx.insert(ledgerItems).values(chunk.map((item) => ({
-          batchId: batch.id,
+          batchId: createdBatch.id,
           shopId,
           seq: item.seq,
           month: item.month,
@@ -155,13 +179,13 @@ export async function createLedgerImport(input: {
         })))
       }
 
-      results.push(toPublicBatch(batch, shopName))
+      results.push(toPublicBatch(createdBatch, shopName))
     }
 
-    return results
+    return { batches: results, reused: reusedCount === results.length && results.length > 0 }
   })
 
-  return batches
+  return { batches, reused }
 }
 
 // 台账统计（随筛选结果变化）：采购金额/营业额/运费/抽点 为 SUM，其余按公式推导
@@ -316,26 +340,22 @@ export async function listLedgerBatches(shopIds: string[] | null, page: number, 
   }
 }
 
-// 硬删除明细并同步扣减批次 total_rows（不低于 0），返回删除条数
+// 硬删除明细并同步扣减批次 total_rows（不低于 0），返回实际删除条数
+// 用 DELETE ... RETURNING 在事务内拿到真实删除行，避免并发重复删除时按"预查询行数"重复扣减
 async function deleteItemsByIds(ids: number[], shopIds: string[] | null) {
   const scope = shopIds ? inArray(ledgerItems.shopId, shopIds) : undefined
-  const targets = await db.select({
-    id: ledgerItems.id,
-    batchId: ledgerItems.batchId,
-  })
-    .from(ledgerItems)
-    .where(and(inArray(ledgerItems.id, ids), scope))
 
-  if (targets.length === 0) {
-    return 0
-  }
+  return db.transaction(async (tx) => {
+    const deletedRows = await tx.delete(ledgerItems)
+      .where(and(inArray(ledgerItems.id, ids), scope))
+      .returning({ batchId: ledgerItems.batchId })
 
-  await db.transaction(async (tx) => {
-    await tx.delete(ledgerItems)
-      .where(and(inArray(ledgerItems.id, targets.map((row) => row.id)), scope))
+    if (deletedRows.length === 0) {
+      return 0
+    }
 
     const perBatch = new Map<string, number>()
-    for (const row of targets) {
+    for (const row of deletedRows) {
       perBatch.set(row.batchId, (perBatch.get(row.batchId) ?? 0) + 1)
     }
     for (const [batchId, delta] of perBatch) {
@@ -346,9 +366,9 @@ async function deleteItemsByIds(ids: number[], shopIds: string[] | null) {
         })
         .where(eq(ledgerBatches.id, batchId))
     }
-  })
 
-  return targets.length
+    return deletedRows.length
+  })
 }
 
 export async function deleteLedgerItem(id: number, shopIds: string[] | null) {

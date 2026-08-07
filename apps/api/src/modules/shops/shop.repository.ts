@@ -28,22 +28,84 @@ export function toShopRow(shop: { id: string; name: string; createdAt: Date }) {
   return { id: shop.id, name: shop.name, createdAt: shop.createdAt.toISOString() }
 }
 
+// 店铺名称冲突（名称唯一，忽略大小写）
+export class ShopNameConflictError extends Error {
+  constructor(shopName: string) {
+    super(`店铺「${shopName}」已存在。`)
+    this.name = 'ShopNameConflictError'
+  }
+}
+
 // 创建店铺（管理员全局账号，无需绑定成员关系）
 export async function createShop(name: string) {
-  const [shop] = await db.insert(shops).values({ name }).returning()
+  const [shop] = await db.insert(shops).values({ name }).onConflictDoNothing().returning()
   if (!shop) {
-    throw new Error('店铺创建失败。')
+    throw new ShopNameConflictError(name)
   }
   return toShopRow(shop)
 }
 
-// 把用户加入店铺并授予角色（幂等）
-export async function addUserToShopWithRoles(shopId: string, userId: string, roleCodes: UserRole[]) {
-  await db.transaction(async (tx) => {
-    await tx.insert(shopMembers).values({ shopId, userId, isActive: true }).onConflictDoNothing()
-    for (const roleCode of roleCodes) {
-      await tx.insert(shopMemberRoles).values({ shopId, userId, roleCode }).onConflictDoNothing()
+// 删除店铺（成员关系、员工、工作记录、台账等关联数据由数据库级联删除）
+export async function deleteShop(shopId: string): Promise<boolean> {
+  const [deleted] = await db.delete(shops).where(eq(shops.id, shopId)).returning({ id: shops.id })
+  return Boolean(deleted)
+}
+
+// 添加成员（原子）：已存在用户直接复用，不存在则创建账号，随后入店并授予角色
+// 整个流程在一个事务内完成，避免"账号已创建但未入店"的中间状态；并发重复提交不会产生重复数据
+export async function createShopMember(input: {
+  shopId: string
+  email: string
+  passwordHash: string | null
+  displayName: string | null
+  roleCodes: UserRole[]
+}) {
+  return db.transaction(async (tx) => {
+    let userId: string | null = null
+
+    if (input.passwordHash) {
+      // 新用户：并发下唯一索引冲突时回查已有账号（与店铺自动创建同模式）
+      const [created] = await tx.insert(appUsers).values({
+        email: input.email,
+        passwordHash: input.passwordHash,
+        displayName: input.displayName,
+        isAdmin: false,
+        isActive: true,
+      }).onConflictDoNothing().returning({ id: appUsers.id })
+      userId = created?.id ?? null
+      if (!userId) {
+        const [existing] = await tx.select({ id: appUsers.id })
+          .from(appUsers)
+          .where(eq(appUsers.email, input.email))
+          .limit(1)
+        userId = existing?.id ?? null
+      }
+    } else {
+      const [existing] = await tx.select({ id: appUsers.id })
+        .from(appUsers)
+        .where(eq(appUsers.email, input.email))
+        .limit(1)
+      userId = existing?.id ?? null
     }
+
+    if (!userId) {
+      throw new ShopMemberError('USER_NOT_FOUND', '账号不存在。')
+    }
+
+    // 入店（幂等）：返回空说明已是该店铺成员
+    const [member] = await tx.insert(shopMembers)
+      .values({ shopId: input.shopId, userId, isActive: true })
+      .onConflictDoNothing()
+      .returning({ userId: shopMembers.userId })
+    if (!member) {
+      throw new ShopMemberError('MEMBER_EXISTS', '该用户已经是此店铺成员。')
+    }
+
+    for (const roleCode of input.roleCodes) {
+      await tx.insert(shopMemberRoles).values({ shopId: input.shopId, userId, roleCode }).onConflictDoNothing()
+    }
+
+    return { userId }
   })
 }
 

@@ -125,6 +125,8 @@ export const employeeWorkBatches = pgTable('employee_work_batches', {
   employeeName: text('employee_name').notNull(),
   workDate: date('work_date').notNull(),
   fileName: text('file_name').notNull(),
+  // 导入幂等键（解析后业务数据的规范化 SHA-256），同店铺+同指纹只允许一个批次
+  idempotencyKey: text('idempotency_key'),
   uploadedBy: uuid('uploaded_by').notNull(),
   totalRows: integer('total_rows').notNull().default(0),
   archivedAt: timestamp('archived_at', { withTimezone: true, mode: 'date' }),
@@ -132,6 +134,7 @@ export const employeeWorkBatches = pgTable('employee_work_batches', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
+  uniqueIndex('employee_work_batches_shop_idempotency_unique').on(table.shopId, table.idempotencyKey),
   index('employee_work_batches_shop_employee_date_idx').on(table.shopId, table.employeeName, table.workDate),
   index('employee_work_batches_shop_work_date_idx').on(table.shopId, table.workDate),
   index('employee_work_batches_shop_created_at_idx').on(table.shopId, table.createdAt),
@@ -162,11 +165,14 @@ export const ledgerBatches = pgTable('ledger_batches', {
   id: uuid('id').primaryKey().defaultRandom(),
   shopId: uuid('shop_id').notNull(),
   fileName: text('file_name').notNull(),
+  // 导入幂等键（解析后业务数据的规范化 SHA-256），同店铺+同指纹只允许一个批次
+  idempotencyKey: text('idempotency_key'),
   uploadedBy: uuid('uploaded_by').notNull(),
   totalRows: integer('total_rows').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
+  uniqueIndex('ledger_batches_shop_idempotency_unique').on(table.shopId, table.idempotencyKey),
   index('ledger_batches_shop_created_at_idx').on(table.shopId, table.createdAt),
 ])
 

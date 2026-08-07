@@ -7,6 +7,10 @@ export const shopsService = {
     return data
   },
 
+  async deleteShop(shopId: string): Promise<void> {
+    await apiClient.delete(`/shops/${shopId}`)
+  },
+
   async listMembers(shopId: string): Promise<ShopMemberDto[]> {
     const { data } = await apiClient.get<ShopMemberListResponseDto>(`/shops/${shopId}/members`)
     return data.items

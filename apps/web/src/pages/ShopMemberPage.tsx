@@ -28,7 +28,7 @@ interface AddMemberFormValues {
 }
 
 export function ShopMemberPage() {
-  const { shops, currentShop, switchShop, isAdmin } = useAuth()
+  const { shops, currentShop, switchShop, isAdmin, refreshShops } = useAuth()
   const { message } = AntdApp.useApp()
   const [selectedShopId, setSelectedShopId] = useState<string | null>(null)
   const [members, setMembers] = useState<ShopMemberDto[]>([])
@@ -39,6 +39,11 @@ export function ShopMemberPage() {
   const [addMemberForm] = Form.useForm<AddMemberFormValues>()
   const [isSaving, setIsSaving] = useState(false)
   const [accountOptions, setAccountOptions] = useState<Array<{ value: string; label: string }>>([])
+
+  // 进入页面时拉取最新店铺列表（台账导入等操作可能在别的页面自动创建了店铺）
+  useEffect(() => {
+    void refreshShops()
+  }, [refreshShops])
 
   // 默认选中第一个店铺（管理员可切换任意店铺）
   const selectedShop = useMemo(
@@ -113,6 +118,28 @@ export function ShopMemberPage() {
       message.error(apiMessage || '店铺创建失败。')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  async function handleDeleteShop(shop: Shop) {
+    try {
+      await shopsService.deleteShop(shop.id)
+      message.success(`店铺「${shop.name}」已删除。`)
+      if (selectedShopId === shop.id) {
+        // 删除的是当前选中店铺：先切回「全部」刷新列表，再选中剩余店铺
+        await switchShop(null)
+        const next = shops.find((item) => item.id !== shop.id)
+        setSelectedShopId(next?.id ?? null)
+        if (!next) {
+          setMembers([])
+        }
+      } else {
+        // 删除的是其他店铺：保持当前店铺，刷新上下文中的店铺列表
+        await switchShop(currentShop?.id ?? null)
+      }
+    } catch (error) {
+      const apiMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message
+      message.error(apiMessage || '店铺删除失败。')
     }
   }
 
@@ -286,6 +313,26 @@ export function ShopMemberPage() {
               <List.Item
                 className={shop.id === selectedShopId ? 'shop-list-item active' : 'shop-list-item'}
                 onClick={() => setSelectedShopId(shop.id)}
+                actions={[
+                  <Popconfirm
+                    key="delete-shop"
+                    title={`确认删除店铺「${shop.name}」？`}
+                    description="该店铺下的成员、员工、工作记录与台账将一并删除，且不可恢复。"
+                    okText="删除"
+                    okButtonProps={{ danger: true }}
+                    cancelText="取消"
+                    onConfirm={() => handleDeleteShop(shop)}
+                  >
+                    <Button
+                      type="text"
+                      danger
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      aria-label={`删除店铺 ${shop.name}`}
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  </Popconfirm>,
+                ]}
               >
                 <Space><ShopOutlined /><span>{shop.name}</span></Space>
               </List.Item>

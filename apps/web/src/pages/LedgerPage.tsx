@@ -127,7 +127,11 @@ export function LedgerPage() {
         file,
         onProgress: setUploadProgress,
       })
-      message.success(`已导入 ${result.importedRows.toLocaleString()} 行台账数据（${result.batches.length} 个店铺）。`)
+      if (result.reused) {
+        message.info(`该文件此前已导入过（${result.importedRows.toLocaleString()} 行），未重复入库。`)
+      } else {
+        message.success(`已导入 ${result.importedRows.toLocaleString()} 行台账数据（${result.batches.length} 个店铺）。`)
+      }
       setFile(null)
       setIsImportModalOpen(false)
       setPage(1)
@@ -158,7 +162,8 @@ export function LedgerPage() {
       base.push({ title: '店铺', dataIndex: 'shopName', key: 'shopName', width: 120, fixed: 'left' })
     }
     base.push(
-      { title: '序号', dataIndex: 'seq', key: 'seq', width: 64, render: renderText },
+      // 自动序号：按当前列表顺序全局连续编号（跨分页累计），不受 Excel 原始序号影响
+      { title: '序号', key: 'seq', width: 64, render: (_, __, index: number) => (page - 1) * pageSize + index + 1 },
       { title: '月份', dataIndex: 'month', key: 'month', width: 70, render: renderText },
       { title: '订单日期', dataIndex: 'orderDate', key: 'orderDate', width: 160, render: renderText },
       { title: '订单号', dataIndex: 'orderNo', key: 'orderNo', width: 170, render: renderText },
@@ -204,7 +209,7 @@ export function LedgerPage() {
       })
     }
     return base
-  }, [canDeleteLedger, currentShop])
+  }, [canDeleteLedger, currentShop, page, pageSize])
 
   const rowSelection = canDeleteLedger ? {
     selectedRowKeys,

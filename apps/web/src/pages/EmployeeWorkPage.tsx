@@ -151,7 +151,11 @@ export function EmployeeWorkPage() {
       })
       setLastBatch(result.batch)
       setEmployeeOptions((current) => current.includes(employeeName.trim()) ? current : [...current, employeeName.trim()].sort())
-      message.success(`已导入 ${result.importedRows.toLocaleString()} 行员工工作数据。`)
+      if (result.reused) {
+        message.info(`该文件此前已导入过（${result.importedRows.toLocaleString()} 行），未重复入库。`)
+      } else {
+        message.success(`已导入 ${result.importedRows.toLocaleString()} 行员工工作数据。`)
+      }
       setPage(1)
       await loadItems()
     } catch (error) {
@@ -234,7 +238,8 @@ export function EmployeeWorkPage() {
     base.push(
       { title: '员工', dataIndex: 'employeeName', key: 'employeeName', width: 110, fixed: 'left' },
       { title: '工作日期', dataIndex: 'workDate', key: 'workDate', width: 112, fixed: 'left' },
-      { title: '序号', dataIndex: 'seq', key: 'seq', width: 70, render: (value: string | null) => value || '—' },
+      // 自动序号：按当前列表顺序全局连续编号（跨分页累计），不受 Excel 原始序号影响
+      { title: '序号', key: 'seq', width: 70, render: (_, __, index: number) => (page - 1) * pageSize + index + 1 },
       { title: '货号', dataIndex: 'sku', key: 'sku', width: 140, render: (value: string | null) => value || '—' },
       { title: '采集平台', dataIndex: 'platform', key: 'platform', width: 110, render: (value: string | null) => value ? <Tag bordered={false} color="blue">{value}</Tag> : '—' },
       { title: '采集商品名称', dataIndex: 'name', key: 'name', width: 260, ellipsis: true },
@@ -263,7 +268,7 @@ export function EmployeeWorkPage() {
       })
     }
     return base
-  }, [canDeleteEmployeeWork, currentShop])
+  }, [canDeleteEmployeeWork, currentShop, page, pageSize])
 
   const rowSelection = canDeleteEmployeeWork ? {
     selectedRowKeys,

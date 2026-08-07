@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { AuthUser, PermissionCode, Shop, UserRole } from '@sku-table/shared'
 import { authService } from '../services/authService'
 
@@ -9,6 +9,8 @@ interface AuthContextValue {
   shops: Shop[]
   currentShop: Shop | null
   isLoading: boolean
+  // 刷新店铺列表（保留当前选中店铺，避免把用户重置回默认店铺）；供进入店铺等页面时拉取最新数据
+  refreshShops: () => Promise<void>
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   switchShop: (shopId: string | null) => Promise<void>
@@ -38,6 +40,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setShops([])
     setCurrentShop(null)
   }
+
+  const refreshShops = useCallback(async () => {
+    if (!authService.hasToken()) return
+    const context = await authService.getCurrentUser()
+    setShops(context.shops)
+    // 当前店铺仍在列表中则保留；已被删除（或原本为空）时回退到默认
+    setCurrentShop((prev) => {
+      if (prev && context.shops.some((shop) => shop.id === prev.id)) return prev
+      return context.currentShop
+    })
+  }, [])
 
   useEffect(() => {
     const handleUnauthorized = () => clearAuthState()
@@ -69,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     shops,
     currentShop,
     isLoading,
+    refreshShops,
     hasPermission: (permission) => permissions.includes(permission),
     canImportEmployeeWork: permissions.includes('employee_work.import'),
     canDeleteEmployeeWork: permissions.includes('employee_work.delete'),

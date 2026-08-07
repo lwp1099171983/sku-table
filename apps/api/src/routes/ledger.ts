@@ -73,7 +73,6 @@ ledgerRoutes.post('/import', requireAuth, requirePermission('ledger.import'), as
   if (!(file instanceof File)) {
     return context.json({ code: 'VALIDATION_ERROR', message: '请选择 Excel 文件。' }, 400)
   }
-
   let items
   try {
     items = await parseLedgerFileAsync(file)
@@ -88,7 +87,7 @@ ledgerRoutes.post('/import', requireAuth, requirePermission('ledger.import'), as
 
   const authContext = context.get('authContext')
   try {
-    const batches = await createLedgerImport({
+    const { batches, reused } = await createLedgerImport({
       fileName: file.name || '未命名文件.xlsx',
       uploadedBy: context.get('authUser').id,
       importer: {
@@ -98,7 +97,8 @@ ledgerRoutes.post('/import', requireAuth, requirePermission('ledger.import'), as
       },
       items,
     })
-    return context.json({ batches, importedRows: items.length }, 201)
+    const importedRows = batches.reduce((sum, batch) => sum + batch.totalRows, 0)
+    return context.json({ batches, importedRows, reused }, reused ? 200 : 201)
   } catch (error) {
     if (error instanceof ShopAccessForbiddenError) {
       return context.json({ code: 'FORBIDDEN', message: error.message }, 403)

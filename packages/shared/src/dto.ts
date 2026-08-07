@@ -142,6 +142,8 @@ export type EmployeeWorkListResponseDto = PageResult<EmployeeWorkItem>
 export interface EmployeeWorkImportResponseDto {
   batch: EmployeeWorkBatch
   importedRows: number
+  // 幂等命中：该文件（内容指纹）此前已导入过，未重复入库
+  reused: boolean
 }
 
 export interface LedgerListQueryDto {
@@ -159,4 +161,6 @@ export interface LedgerListResponseDto extends PageResult<LedgerItem> {
 export interface LedgerImportResponseDto {
   batches: LedgerBatch[]
   importedRows: number
+  // 幂等命中：该文件（内容指纹）此前已导入过，未重复入库
+  reused: boolean
 }
