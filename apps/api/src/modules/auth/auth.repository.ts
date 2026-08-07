@@ -1,5 +1,5 @@
 import { and, asc, eq } from 'drizzle-orm'
-import type { PermissionCode, Shop, UserRole } from '@sku-table/shared'
+import type { AdminUserDto, AdminUserMembershipDto, PermissionCode, Shop, UserRole } from '@sku-table/shared'
 import { db } from '../../db/client.js'
 import {
   appUsers,
@@ -21,6 +21,12 @@ export async function findActiveUserById(id: string) {
   return user?.isActive ? user : null
 }
 
+// 按 id 查询用户（含已停用账号，账号管理用）
+export async function findUserById(id: string) {
+  const [user] = await db.select().from(appUsers).where(eq(appUsers.id, id)).limit(1)
+  return user ?? null
+}
+
 export async function createUser(input: {
   email: string
   passwordHash: string
@@ -35,6 +41,18 @@ export async function createUser(input: {
     isActive: true,
   }).returning()
   return user
+}
+
+export async function updateUserPassword(id: string, passwordHash: string) {
+  await db.update(appUsers)
+    .set({ passwordHash })
+    .where(eq(appUsers.id, id))
+}
+
+export async function updateUserActive(id: string, isActive: boolean) {
+  await db.update(appUsers)
+    .set({ isActive })
+    .where(eq(appUsers.id, id))
 }
 
 // 全部店铺（管理员视角）
@@ -125,4 +143,65 @@ export async function getEffectivePermissions(shopId: string, userId: string): P
 export async function listAllPermissionCodes(): Promise<PermissionCode[]> {
   const rows = await db.select({ code: permissions.code }).from(permissions)
   return rows.map((row) => row.code)
+}
+
+// 全部非管理员账号及其店铺归属（账号管理页视图）
+export async function listAllNonAdminUsers(): Promise<AdminUserDto[]> {
+  const users = await db.select({
+    id: appUsers.id,
+    email: appUsers.email,
+    displayName: appUsers.displayName,
+    isAdmin: appUsers.isAdmin,
+    isActive: appUsers.isActive,
+    createdAt: appUsers.createdAt,
+  })
+    .from(appUsers)
+    .where(eq(appUsers.isAdmin, false))
+    .orderBy(asc(appUsers.createdAt))
+
+  const membershipRows = await db.select({
+    userId: shopMembers.userId,
+    shopId: shops.id,
+    shopName: shops.name,
+    memberActive: shopMembers.isActive,
+    roleCode: shopMemberRoles.roleCode,
+  })
+    .from(shopMembers)
+    .innerJoin(shops, eq(shops.id, shopMembers.shopId))
+    .leftJoin(shopMemberRoles, and(
+      eq(shopMemberRoles.shopId, shopMembers.shopId),
+      eq(shopMemberRoles.userId, shopMembers.userId),
+    ))
+
+  const byUser = new Map<string, AdminUserMembershipDto[]>()
+  for (const row of membershipRows) {
+    let list = byUser.get(row.userId)
+    if (!list) {
+      list = []
+      byUser.set(row.userId, list)
+    }
+    const existing = list.find((item) => item.shopId === row.shopId)
+    if (existing) {
+      if (row.roleCode && !existing.roles.includes(row.roleCode)) {
+        existing.roles.push(row.roleCode)
+      }
+    } else {
+      list.push({
+        shopId: row.shopId,
+        shopName: row.shopName,
+        roles: row.roleCode ? [row.roleCode] : [],
+        memberActive: row.memberActive,
+      })
+    }
+  }
+
+  return users.map((user) => ({
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    isAdmin: user.isAdmin,
+    isActive: user.isActive,
+    createdAt: user.createdAt.toISOString(),
+    memberships: byUser.get(user.id) ?? [],
+  }))
 }

@@ -5,5 +5,6 @@ export const APP_COPY = {
   ledger: '台账',
   shopManagement: '店铺与成员',
   adminRegistration: '注册管理员',
+  accountManagement: '账号管理',
   allShops: '全部店铺',
 } as const

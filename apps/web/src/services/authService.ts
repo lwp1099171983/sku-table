@@ -1,4 +1,4 @@
-import type { LoginRequestDto, LoginResponseDto, MeResponseDto, RegisterAdminRequestDto, RegisterAdminResponseDto, SwitchShopRequestDto } from '@sku-table/shared'
+import type { ChangePasswordRequestDto, LoginRequestDto, LoginResponseDto, MeResponseDto, RegisterAdminRequestDto, RegisterAdminResponseDto, SwitchShopRequestDto } from '@sku-table/shared'
 import apiClient from './apiClient'
 
 const ACCESS_TOKEN_KEY = 'sku_table_access_token'
@@ -23,6 +23,10 @@ export const authService = {
   async registerAdmin(payload: RegisterAdminRequestDto): Promise<RegisterAdminResponseDto> {
     const { data } = await apiClient.post<RegisterAdminResponseDto>('/auth/register', payload)
     return data
+  },
+
+  async changePassword(payload: ChangePasswordRequestDto): Promise<void> {
+    await apiClient.post('/auth/change-password', payload)
   },
 
   async logout(): Promise<void> {

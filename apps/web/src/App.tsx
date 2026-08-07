@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AdminRoute } from './components/AdminRoute'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AppLayout } from './layouts/AppLayout'
+import { AdminUsersPage } from './pages/AdminUsersPage'
 import { EmployeeWorkPage } from './pages/EmployeeWorkPage'
 import { LedgerPage } from './pages/LedgerPage'
 import { LoginPage } from './pages/LoginPage'
@@ -18,6 +19,7 @@ export function App() {
           <Route path="ledger" element={<LedgerPage />} />
           <Route element={<AdminRoute />}>
             <Route path="admin/shops" element={<ShopMemberPage />} />
+            <Route path="admin/users" element={<AdminUsersPage />} />
             <Route path="admin/register" element={<RegisterAdminPage />} />
           </Route>
         </Route>

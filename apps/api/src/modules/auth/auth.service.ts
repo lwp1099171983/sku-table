@@ -6,11 +6,13 @@ import {
   findActiveUserById,
   findShopById,
   findUserByEmail,
+  findUserById,
   getEffectivePermissions,
   getMemberRoles,
   listAllPermissionCodes,
   listAllShops,
   listUserShops,
+  updateUserPassword,
 } from './auth.repository.js'
 import { createAccessToken } from './token.js'
 
@@ -121,6 +123,17 @@ export async function authenticate(email: string, password: string): Promise<Log
     accessToken,
     expiresAt: new Date(Date.now() + env.JWT_EXPIRES_IN_SECONDS * 1000).toISOString(),
   }
+}
+
+// 修改密码：验证旧密码，成功更新后返回 true；旧密码不正确返回 false
+export async function changePassword(userId: string, oldPassword: string, newPassword: string): Promise<boolean> {
+  const user = await findUserById(userId)
+  if (!user || !(await bcrypt.compare(oldPassword, user.passwordHash))) {
+    return false
+  }
+  const passwordHash = await bcrypt.hash(newPassword, 12)
+  await updateUserPassword(userId, passwordHash)
+  return true
 }
 
 export async function getActivePublicUser(id: string): Promise<PublicAuthUser | null> {

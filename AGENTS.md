@@ -48,7 +48,7 @@
 │       ├── src/
 │       │   ├── app.ts              # Hono 应用组装（入口，挂载全部路由）
 │       │   ├── server.ts           # Node 服务启动入口
-│       │   ├── routes/             # HTTP 路由层（auth/employeeWork/ledger/shops/health）
+│       │   ├── routes/             # HTTP 路由层（auth/adminUsers/employeeWork/ledger/shops/health）
 │       │   ├── modules/            # 业务层，按领域拆分（repository/service/parser）
 │       │   │   ├── auth/           # 认证、令牌、RBAC
 │       │   │   ├── employee-work/  # 员工工作记录
@@ -84,6 +84,7 @@
 | 新增/修改前端页面 | `apps/web/src/pages` + 对应 `services/` |
 | 新增/修改 API | `apps/api/src/routes` + 对应 `modules/` |
 | 认证与权限 | `apps/api/src/modules/auth`、`routes/auth.ts`、`layouts/AuthContext.tsx` |
+| 账号管理（重置密码/停用/账号视图） | `apps/api/src/routes/adminUsers.ts`、`pages/AdminUsersPage.tsx` |
 | 台账 | `apps/api/src/modules/ledger`、`routes/ledger.ts`、`pages/LedgerPage.tsx` |
 | 店铺与成员 | `apps/api/src/modules/shops`、`routes/shops.ts`、`pages/ShopMemberPage.tsx` |
 | 数据库变更 | `apps/api/src/db`（schema + migrations + seed） |

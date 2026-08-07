@@ -1,0 +1,5 @@
+.admin-user-display-name { color: var(--ant-color-text-tertiary); font-size: 12px; }
+
+@media (max-width: 760px) {
+  .admin-users-page .ant-table-cell { white-space: nowrap; }
+}

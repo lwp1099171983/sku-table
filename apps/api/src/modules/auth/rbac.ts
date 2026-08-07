@@ -5,6 +5,7 @@ export const PERMISSION_CATALOG: ReadonlyArray<{ code: PermissionCode; name: str
   { code: 'shop.manage', name: '店铺管理', description: '创建和管理店铺。' },
   { code: 'member.read', name: '成员查看', description: '查看店铺成员。' },
   { code: 'member.manage', name: '成员管理', description: '添加、修改和移除店铺成员。' },
+  { code: 'user.manage', name: '账号管理', description: '查看账号、重置密码和停用/启用账号。' },
   { code: 'employee_work.read', name: '员工工作查看', description: '查看员工工作记录。' },
   { code: 'employee_work.import', name: '员工工作导入', description: '导入员工工作 Excel。' },
   { code: 'employee_work.delete', name: '员工工作删除', description: '删除员工工作数据。' },

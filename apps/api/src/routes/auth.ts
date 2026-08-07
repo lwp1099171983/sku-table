@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { z } from 'zod'
-import { AccountExistsError, authenticate, registerAdmin, switchCurrentShop } from '../modules/auth/auth.service.js'
+import { AccountExistsError, authenticate, changePassword, registerAdmin, switchCurrentShop } from '../modules/auth/auth.service.js'
 import { type AuthEnv, requireAuth } from '../modules/auth/auth.middleware.js'
 
 const loginSchema = z.object({
@@ -13,6 +13,11 @@ const registerAdminSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(8),
   displayName: z.string().trim().min(1).optional(),
+})
+
+const changePasswordSchema = z.object({
+  oldPassword: z.string().min(1),
+  newPassword: z.string().min(8),
 })
 
 const switchShopSchema = z.object({
@@ -46,6 +51,20 @@ loginRoutes.post('/login', async (context) => {
 })
 
 loginRoutes.get('/me', requireAuth, (context) => context.json(context.get('authContext')))
+
+// 修改密码：验证旧密码后更新，改密后旧 token 不强制下线（v1 无 token_version）
+loginRoutes.post('/change-password', requireAuth, async (context) => {
+  const body = await readBody(context, changePasswordSchema)
+  if (!body) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '请填写旧密码，新密码至少需要 8 个字符。' }, 400)
+  }
+
+  const ok = await changePassword(context.get('authUser').id, body.oldPassword, body.newPassword)
+  if (!ok) {
+    return context.json({ code: 'INVALID_CREDENTIALS', message: '旧密码不正确。' }, 401)
+  }
+  return context.body(null, 204)
+})
 
 // 切换当前店铺：管理员传 null 表示"全部"
 loginRoutes.post('/switch-shop', requireAuth, async (context) => {

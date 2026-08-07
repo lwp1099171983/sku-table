@@ -47,6 +47,35 @@ export interface RegisterAdminResponseDto {
   user: AuthUser
 }
 
+export interface ChangePasswordRequestDto {
+  oldPassword: string
+  newPassword: string
+}
+
+export interface ResetPasswordRequestDto {
+  newPassword: string
+}
+
+export interface SetUserActiveRequestDto {
+  isActive: boolean
+}
+
+// 账号视图：非管理员用户及其店铺归属（管理员全局账号管理用）
+export interface AdminUserMembershipDto {
+  shopId: string
+  shopName: string
+  roles: UserRole[]
+  memberActive: boolean
+}
+
+export interface AdminUserDto extends AppUser {
+  memberships: AdminUserMembershipDto[]
+}
+
+export interface AdminUserListResponseDto {
+  items: AdminUserDto[]
+}
+
 export interface CreateShopRequestDto {
   name: string
 }

@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { loginRoutes } from './auth.js'
+import { adminUserRoutes } from './adminUsers.js'
 import { healthRoutes } from './health.js'
 import { employeeWorkRoutes } from './employeeWork.js'
 import { ledgerRoutes } from './ledger.js'
@@ -11,3 +12,4 @@ export const apiRoutes = new Hono()
   .route('/employee-work', employeeWorkRoutes)
   .route('/ledger', ledgerRoutes)
   .route('/shops', shopRoutes)
+  .route('/admin/users', adminUserRoutes)

@@ -6,6 +6,7 @@ export type PermissionCode =
   | 'shop.manage'
   | 'member.read'
   | 'member.manage'
+  | 'user.manage'
   | 'employee_work.read'
   | 'employee_work.import'
   | 'employee_work.delete'
