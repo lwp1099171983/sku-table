@@ -1,17 +1,18 @@
 import { Hono } from 'hono'
-import type { Context } from 'hono'
 import { z } from 'zod'
-import type { AuthContextDto, EmployeeWorkListQueryDto } from '@sku-table/shared'
-import { forbidden, type AuthEnv, requireAuth, requirePermission } from '../modules/auth/auth.middleware.js'
-import { loadAuthContextForShop } from '../modules/auth/auth.service.js'
+import type { EmployeeWorkListQueryDto } from '@sku-table/shared'
+import { type AuthEnv, requireAuth, requirePermission } from '../modules/auth/auth.middleware.js'
 import { parseEmployeeWorkFileAsync } from '../modules/employee-work/parser.js'
 import {
   createEmployeeWorkImport,
   deleteEmployeeWorkItem,
   deleteEmployeeWorkItems,
   listEmployeeNames,
+  listEmployeeWorkBatches,
   listEmployeeWorkItems,
+  rollbackEmployeeWorkBatch,
 } from '../modules/employee-work/repository.js'
+import { readBody, resolveDeleteScope, resolveShopScope } from './helpers.js'
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '工作日期格式不正确。')
 
@@ -22,6 +23,12 @@ const listQuerySchema = z.object({
   employeeName: z.string().trim().max(100).optional(),
   workDate: dateSchema.optional(),
   sku: z.string().trim().max(200).optional(),
+})
+
+const batchListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  shopId: z.string().trim().min(1).max(100).optional(),
 })
 
 const batchDeleteSchema = z.object({
@@ -44,13 +51,8 @@ employeeWorkRoutes.get('/', requireAuth, requirePermission('employee_work.read')
     return context.json({ code: 'VALIDATION_ERROR', message: '分页或筛选条件不正确。' }, 400)
   }
 
-  // shopId 必须属于当前用户可访问店铺；管理员不传时返回全部店铺
-  const authContext = context.get('authContext')
-  const accessibleIds = authContext.shops.map((shop) => shop.id)
-  if (result.data.shopId && !accessibleIds.includes(result.data.shopId)) {
-    return context.json({ code: 'FORBIDDEN', message: '无权访问该店铺数据。' }, 403)
-  }
-  const shopIds = result.data.shopId ? [result.data.shopId] : (authContext.roles.includes('admin') ? null : accessibleIds)
+  const scope = resolveShopScope(context, result.data.shopId)
+  if (scope instanceof Response) return scope
 
   const query: Required<Pick<EmployeeWorkListQueryDto, 'page' | 'pageSize'>> & Omit<EmployeeWorkListQueryDto, 'page' | 'pageSize'> = {
     page: result.data.page,
@@ -59,23 +61,38 @@ employeeWorkRoutes.get('/', requireAuth, requirePermission('employee_work.read')
     workDate: result.data.workDate,
     sku: result.data.sku || undefined,
   }
-  return context.json(await listEmployeeWorkItems(shopIds, query))
+  return context.json(await listEmployeeWorkItems(scope.shopIds, query))
+})
+
+employeeWorkRoutes.get('/batches', requireAuth, requirePermission('employee_work.read'), async (context) => {
+  const result = batchListQuerySchema.safeParse(context.req.query())
+  if (!result.success) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '分页参数不正确。' }, 400)
+  }
+
+  const scope = resolveShopScope(context, result.data.shopId)
+  if (scope instanceof Response) return scope
+
+  return context.json(await listEmployeeWorkBatches(scope.shopIds, result.data.page, result.data.pageSize))
+})
+
+// 按批次回滚：仅管理员（employee_work.rollback），回滚后默认列表不再展示该批次明细
+employeeWorkRoutes.post('/batches/:id/rollback', requireAuth, requirePermission('employee_work.rollback'), async (context) => {
+  const batchId = context.req.param('id')
+  if (!batchId) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '批次 ID 不正确。' }, 400)
+  }
+  const batch = await rollbackEmployeeWorkBatch(batchId, context.get('authUser').id)
+  if (!batch) {
+    return context.json({ code: 'NOT_FOUND', message: '批次不存在或已回滚。' }, 404)
+  }
+  return context.json({ batch })
 })
 
 employeeWorkRoutes.get('/employees', requireAuth, requirePermission('employee_work.read'), async (context) => {
-  const shopId = context.req.query('shopId')
-  const authContext = context.get('authContext')
-  const accessibleIds = authContext.shops.map((shop) => shop.id)
-  let shopIds: string[] | null
-  if (shopId) {
-    if (!accessibleIds.includes(shopId)) {
-      return context.json({ code: 'FORBIDDEN', message: '无权访问该店铺数据。' }, 403)
-    }
-    shopIds = [shopId]
-  } else {
-    shopIds = authContext.roles.includes('admin') ? null : accessibleIds
-  }
-  return context.json({ items: await listEmployeeNames(shopIds) })
+  const scope = resolveShopScope(context, context.req.query('shopId'))
+  if (scope instanceof Response) return scope
+  return context.json({ items: await listEmployeeNames(scope.shopIds) })
 })
 
 employeeWorkRoutes.post('/import', requireAuth, requirePermission('employee_work.import'), async (context) => {
@@ -129,34 +146,14 @@ employeeWorkRoutes.post('/import', requireAuth, requirePermission('employee_work
   return context.json({ batch, importedRows: items.length }, 201)
 })
 
-// 解析删除范围并校验删除权限：带 shopId 时按该店铺上下文校验；不带时按默认上下文校验
-async function resolveDeleteScope(
-  context: Context<AuthEnv>,
-  shopId?: string,
-): Promise<{ shopIds: string[] | null } | Response> {
-  const authUser = context.get('authUser')
-  const authContext = context.get('authContext')
-  if (shopId) {
-    const shopContext = await loadAuthContextForShop(authUser.id, shopId)
-    if (!shopContext || !shopContext.permissions.includes('employee_work.delete')) {
-      return forbidden(context)
-    }
-    return { shopIds: [shopId] }
-  }
-  if (!authContext.permissions.includes('employee_work.delete')) {
-    return forbidden(context)
-  }
-  return { shopIds: authContext.roles.includes('admin') ? null : authContext.shops.map((shop) => shop.id) }
-}
-
-// 单行删除
+// 单行删除：仅允许删除自己有删除权限的店铺数据
 employeeWorkRoutes.delete('/items/:id', requireAuth, async (context) => {
   const itemId = Number(context.req.param('id'))
   if (!Number.isInteger(itemId) || itemId <= 0) {
     return context.json({ code: 'VALIDATION_ERROR', message: '记录 ID 不正确。' }, 400)
   }
 
-  const scope = await resolveDeleteScope(context, context.req.query('shopId'))
+  const scope = await resolveDeleteScope(context, 'employee_work.delete', context.req.query('shopId'))
   if (scope instanceof Response) return scope
 
   const deleted = await deleteEmployeeWorkItem(itemId, scope.shopIds)
@@ -168,20 +165,14 @@ employeeWorkRoutes.delete('/items/:id', requireAuth, async (context) => {
 
 // 批量删除
 employeeWorkRoutes.post('/items/batch-delete', requireAuth, async (context) => {
-  let body: unknown
-  try {
-    body = await context.req.json()
-  } catch {
-    return context.json({ code: 'VALIDATION_ERROR', message: '请求体格式不正确。' }, 400)
-  }
-  const result = batchDeleteSchema.safeParse(body)
-  if (!result.success) {
+  const body = await readBody(context, batchDeleteSchema)
+  if (!body) {
     return context.json({ code: 'VALIDATION_ERROR', message: '请提供要删除的记录 ID 列表。' }, 400)
   }
 
-  const scope = await resolveDeleteScope(context, result.data.shopId)
+  const scope = await resolveDeleteScope(context, 'employee_work.delete', body.shopId)
   if (scope instanceof Response) return scope
 
-  const deleted = await deleteEmployeeWorkItems(result.data.ids, scope.shopIds)
+  const deleted = await deleteEmployeeWorkItems(body.ids, scope.shopIds)
   return context.json({ deleted })
 })

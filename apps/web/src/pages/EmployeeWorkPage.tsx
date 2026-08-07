@@ -1,11 +1,12 @@
-import { DeleteOutlined, DownloadOutlined, InboxOutlined, LinkOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
+import { DeleteOutlined, DownloadOutlined, HistoryOutlined, InboxOutlined, LinkOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
 import { Alert, App as AntdApp, AutoComplete, Button, Empty, Input, Modal, Pagination, Popconfirm, Progress, Select, Space, Table, Tag, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { EmployeeWorkBatch, EmployeeWorkItem } from '@sku-table/shared'
-import { APP_COPY } from '../constants/app'
+import { APP_LABELS } from '../constants/app'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import { useRecordDeletion } from '../hooks/useRecordDeletion'
 import { useAuth } from '../layouts/AuthContext'
 import { employeeWorkService } from '../services/employeeWorkService'
 import { downloadTemplate, templateFiles } from '../services/templateService'
@@ -23,8 +24,8 @@ function today() {
 }
 
 export function EmployeeWorkPage() {
-  const { canImportEmployeeWork, canDeleteEmployeeWork, currentShop } = useAuth()
-  const { message, modal } = AntdApp.useApp()
+  const { canImportEmployeeWork, canDeleteEmployeeWork, currentShop, hasPermission } = useAuth()
+  const { message } = AntdApp.useApp()
   const [employeeName, setEmployeeName] = useState('')
   const [workDate, setWorkDate] = useState(today)
   const [file, setFile] = useState<File | null>(null)
@@ -42,8 +43,13 @@ export function EmployeeWorkPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
+  const [batches, setBatches] = useState<EmployeeWorkBatch[]>([])
+  const [batchPage, setBatchPage] = useState(1)
+  const [batchPageSize, setBatchPageSize] = useState(20)
+  const [batchTotal, setBatchTotal] = useState(0)
+  const [batchesLoading, setBatchesLoading] = useState(false)
+  const [isRollingBack, setIsRollingBack] = useState(false)
 
   const shopId = currentShop?.id ?? null
 
@@ -75,8 +81,29 @@ export function EmployeeWorkPage() {
     }
   }, [debouncedSku, filterDate, filterEmployee, message, page, pageSize, shopId])
 
+  const loadBatches = useCallback(async () => {
+    setBatchesLoading(true)
+    try {
+      const result = await employeeWorkService.listBatches({ page: batchPage, pageSize: batchPageSize, shopId })
+      setBatches(result.items)
+      setBatchTotal(result.total)
+    } catch {
+      message.error('导入批次加载失败，请稍后重试。')
+    } finally {
+      setBatchesLoading(false)
+    }
+  }, [batchPage, batchPageSize, message, shopId])
+
   useEffect(() => { void loadEmployees() }, [loadEmployees])
   useEffect(() => { void loadItems() }, [loadItems])
+  useEffect(() => { if (isBatchModalOpen) void loadBatches() }, [isBatchModalOpen, loadBatches])
+
+  const { selectedRowKeys, setSelectedRowKeys, isDeleting, handleDelete, confirmDelete } = useRecordDeletion({
+    deleteItem: employeeWorkService.deleteItem,
+    batchDelete: employeeWorkService.batchDelete,
+    shopId,
+    onDeleted: loadItems,
+  })
 
   const uploadProps: UploadProps = {
     accept: '.xlsx,.xls',
@@ -151,33 +178,53 @@ export function EmployeeWorkPage() {
     setLastBatch(null)
   }
 
-  async function handleDelete(ids: number[]) {
-    setIsDeleting(true)
+  async function handleRollback(batch: EmployeeWorkBatch) {
+    setIsRollingBack(true)
     try {
-      const result = ids.length === 1
-        ? await employeeWorkService.deleteItem(ids[0], shopId)
-        : await employeeWorkService.batchDelete(ids, shopId)
-      message.success(`已删除 ${result.deleted.toLocaleString()} 条记录。`)
-      setSelectedRowKeys([])
+      await employeeWorkService.rollbackBatch(batch.id)
+      message.success(`已回滚批次「${batch.fileName}」，该批次数据不再展示。`)
+      await loadBatches()
       await loadItems()
     } catch (error) {
       const apiMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message
-      message.error(apiMessage || '删除失败，请稍后重试。')
+      message.error(apiMessage || '批次回滚失败，请稍后重试。')
     } finally {
-      setIsDeleting(false)
+      setIsRollingBack(false)
     }
   }
 
-  function confirmDelete(ids: number[]) {
-    modal.confirm({
-      title: `确认删除选中的 ${ids.length} 条记录？`,
-      content: '删除后不可恢复，同时会扣减对应导入批次的记录数。',
-      okText: '删除',
-      okButtonProps: { danger: true },
-      cancelText: '取消',
-      onOk: () => handleDelete(ids),
-    })
-  }
+  const batchColumns: ColumnsType<EmployeeWorkBatch> = [
+    { title: '店铺', dataIndex: 'shopName', key: 'shopName', width: 120 },
+    { title: '员工', dataIndex: 'employeeName', key: 'employeeName', width: 100 },
+    { title: '工作日期', dataIndex: 'workDate', key: 'workDate', width: 110 },
+    { title: '文件名', dataIndex: 'fileName', key: 'fileName', ellipsis: true },
+    { title: '行数', dataIndex: 'totalRows', key: 'totalRows', width: 80, align: 'right' as const, render: (value: number) => value.toLocaleString() },
+    { title: '导入时间', dataIndex: 'createdAt', key: 'createdAt', width: 170, render: (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false }) },
+    {
+      title: '状态',
+      dataIndex: 'archivedAt',
+      key: 'archivedAt',
+      width: 90,
+      render: (value: string | null) => value ? <Tag color="red">已回滚</Tag> : <Tag color="green">正常</Tag>,
+    },
+    ...(hasPermission('employee_work.rollback') ? [{
+      title: '操作',
+      key: 'action',
+      width: 90,
+      render: (_, record) => record.archivedAt ? null : (
+        <Popconfirm
+          title="确认回滚这个批次？"
+          description="回滚后数据不再展示，批次记录保留。"
+          okText="回滚"
+          okButtonProps={{ danger: true }}
+          cancelText="取消"
+          onConfirm={() => handleRollback(record)}
+        >
+          <Button type="text" danger icon={<DeleteOutlined />} loading={isRollingBack} aria-label="回滚批次" />
+        </Popconfirm>
+      ),
+    } as ColumnsType<EmployeeWorkBatch>[number]] : []),
+  ]
 
   const columns: ColumnsType<EmployeeWorkItem> = useMemo(() => {
     const base: ColumnsType<EmployeeWorkItem> = []
@@ -244,11 +291,12 @@ export function EmployeeWorkPage() {
       <div className="page-heading">
         <div>
           <Typography.Text className="eyebrow">EMPLOYEE WORK LOG</Typography.Text>
-          <Typography.Title level={1}>{APP_COPY.employeeWork}</Typography.Title>
+          <Typography.Title level={1}>{APP_LABELS.employeeWork}</Typography.Title>
           <Typography.Paragraph type="secondary">按店铺隔离，老板上传员工每日采集的商品，按员工和日期追溯工作内容。</Typography.Paragraph>
         </div>
         <Space className="page-actions">
           {canImportEmployeeWork && <Button type="primary" icon={<UploadOutlined />} onClick={openImportModal}>导入员工数据</Button>}
+          <Button icon={<HistoryOutlined />} onClick={() => { setIsBatchModalOpen(true); setBatchPage(1) }}>导入记录</Button>
           <Button icon={<DownloadOutlined />} onClick={() => downloadTemplate(templateFiles.employeeWork, '员工工作记录模板.xlsx')}>下载模板</Button>
           <Button icon={<ReloadOutlined />} onClick={() => { void loadEmployees(); void loadItems() }}>刷新</Button>
         </Space>
@@ -291,11 +339,46 @@ export function EmployeeWorkPage() {
         {lastBatch && <Alert className="import-result" type="success" showIcon message="导入完成" description={`店铺：${lastBatch.shopName}；员工：${lastBatch.employeeName}；工作日期：${lastBatch.workDate}；共 ${lastBatch.totalRows.toLocaleString()} 行。`} />}
       </Modal>}
 
+      <Modal
+        title="导入记录"
+        open={isBatchModalOpen}
+        width={960}
+        footer={null}
+        onCancel={() => setIsBatchModalOpen(false)}
+        destroyOnClose
+      >
+        <Typography.Paragraph type="secondary">按批次追溯导入来源（文件名、员工、日期、行数）；管理员可回滚整批数据，回滚后默认列表不再展示。</Typography.Paragraph>
+        <Table
+          rowKey="id"
+          columns={batchColumns}
+          dataSource={batches}
+          loading={batchesLoading}
+          size="small"
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无导入批次" /> }}
+          pagination={{
+            current: batchPage,
+            pageSize: batchPageSize,
+            total: batchTotal,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50],
+            showTotal: (count) => `共 ${count.toLocaleString()} 个批次`,
+            onChange: (nextPage, nextPageSize) => {
+              if (nextPageSize !== batchPageSize) {
+                setBatchPageSize(nextPageSize)
+                setBatchPage(1)
+                return
+              }
+              setBatchPage(nextPage)
+            },
+          }}
+        />
+      </Modal>
+
       <div className="records-section">
         <div className="section-heading">
           <div><Typography.Title level={4}>工作明细</Typography.Title><Typography.Text type="secondary">共 {total.toLocaleString()} 条记录</Typography.Text></div>
           {canDeleteEmployeeWork && selectedRowKeys.length > 0 && (
-            <Button danger icon={<DeleteOutlined />} loading={isDeleting} onClick={() => confirmDelete(selectedRowKeys.map(Number))}>
+            <Button danger icon={<DeleteOutlined />} loading={isDeleting} onClick={() => confirmDelete(selectedRowKeys.map(Number), `确认删除选中的 ${selectedRowKeys.length} 条记录？`, '删除后不可恢复，同时会扣减对应导入批次的记录数。')}>
               批量删除（{selectedRowKeys.length}）
             </Button>
           )}

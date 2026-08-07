@@ -1,10 +1,11 @@
 import { Hono } from 'hono'
-import type { Context } from 'hono'
-import { z } from 'zod'
 import bcrypt from 'bcryptjs'
+import { z } from 'zod'
 import type { ShopMemberDto, UserRole } from '@sku-table/shared'
 import { type AuthEnv, requireAuth, requirePermission, requireShopPermission } from '../modules/auth/auth.middleware.js'
+import { BCRYPT_ROUNDS } from '../modules/auth/constants.js'
 import { createUser, findUserByEmail } from '../modules/auth/auth.repository.js'
+import { readBody } from './helpers.js'
 import { MEMBER_ASSIGNABLE_PERMISSIONS } from '../modules/auth/rbac.js'
 import {
   addUserToShopWithRoles,
@@ -46,16 +47,6 @@ const setPermissionSchema = z.object({
   permissionCode: z.enum(['employee_work.delete', 'ledger.delete']),
   effect: z.enum(['allow', 'deny']).nullable(),
 })
-
-async function readBody<T>(context: Context<AuthEnv>, schema: z.ZodType<T>) {
-  try {
-    const body = await context.req.json()
-    const result = schema.safeParse(body)
-    return result.success ? result.data : null
-  } catch {
-    return null
-  }
-}
 
 function toMemberDto(member: ShopMemberRecord, directPermissions: Awaited<ReturnType<typeof getMemberDirectPermissions>>): ShopMemberDto {
   return {
@@ -116,7 +107,7 @@ shopRoutes.post('/:shopId/members', requireShopPermission('member.manage'), asyn
     if (!body.password) {
       return context.json({ code: 'VALIDATION_ERROR', message: '新用户必须设置密码，且密码至少需要 8 个字符。' }, 400)
     }
-    const passwordHash = await bcrypt.hash(body.password, 12)
+    const passwordHash = await bcrypt.hash(body.password, BCRYPT_ROUNDS)
     const created = await createUser({
       email: body.email,
       passwordHash,

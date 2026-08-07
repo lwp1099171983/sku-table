@@ -48,11 +48,12 @@
 │       ├── src/
 │       │   ├── app.ts              # Hono 应用组装（入口，挂载全部路由）
 │       │   ├── server.ts           # Node 服务启动入口
-│       │   ├── routes/             # HTTP 路由层（auth/adminUsers/employeeWork/ledger/shops/health）
+│       │   ├── routes/             # HTTP 路由层（auth/adminUsers/employeeWork/ledger/shops/health + helpers 共享工具）
 │       │   ├── modules/            # 业务层，按领域拆分（repository/service/parser）
-│       │   │   ├── auth/           # 认证、令牌、RBAC
-│       │   │   ├── employee-work/  # 员工工作记录
-│       │   │   ├── ledger/         # 台账（订单统计表，导入/列表/统计/删除）
+│       │   │   ├── auth/           # 认证、令牌、RBAC、常量
+│       │   │   ├── imports/        # Excel 导入共享解析工具
+│       │   │   ├── employee-work/  # 员工工作记录（含批次追溯与回滚）
+│       │   │   ├── ledger/         # 台账（订单统计表，导入/列表/统计/删除/批次追溯）
 │       │   │   └── shops/          # 店铺与成员管理
 │       │   ├── middleware/         # 错误处理、认证等通用中间件
 │       │   ├── config/             # 环境变量和运行时配置

@@ -9,6 +9,14 @@ const INSERT_CHUNK_SIZE = 1_000
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
+// 台账导入目标店铺不属于导入者时抛出，路由层转 403
+export class ShopAccessForbiddenError extends Error {
+  constructor(shopName: string) {
+    super(`无权向店铺「${shopName}」导入台账数据。`)
+    this.name = 'ShopAccessForbiddenError'
+  }
+}
+
 function toPublicBatch(batch: typeof ledgerBatches.$inferSelect, shopName: string) {
   return {
     id: batch.id,
@@ -18,6 +26,27 @@ function toPublicBatch(batch: typeof ledgerBatches.$inferSelect, shopName: strin
     uploadedBy: batch.uploadedBy,
     totalRows: batch.totalRows,
     createdAt: batch.createdAt.toISOString(),
+  }
+}
+
+// 非管理员导入者向已存在店铺写入时，必须是被分配且启用的店铺成员（规格 3.3）
+async function assertImporterCanWrite(
+  tx: Tx,
+  shopId: string,
+  shopName: string,
+  importer: { id: string; isAdmin: boolean },
+) {
+  if (importer.isAdmin) return
+  const [member] = await tx.select({ userId: shopMembers.userId })
+    .from(shopMembers)
+    .where(and(
+      eq(shopMembers.shopId, shopId),
+      eq(shopMembers.userId, importer.id),
+      eq(shopMembers.isActive, true),
+    ))
+    .limit(1)
+  if (!member) {
+    throw new ShopAccessForbiddenError(shopName)
   }
 }
 
@@ -32,6 +61,7 @@ async function findOrCreateShop(
     .where(sql`lower(${shops.name}) = ${shopName.toLowerCase()}`)
     .limit(1)
   if (existing) {
+    await assertImporterCanWrite(tx, existing.id, shopName, importer)
     return existing.id
   }
 
@@ -58,6 +88,7 @@ async function findOrCreateShop(
   if (!retry) {
     throw new Error('店铺自动创建失败。')
   }
+  await assertImporterCanWrite(tx, retry.id, shopName, importer)
   return retry.id
 }
 
@@ -245,6 +276,43 @@ export async function listLedgerItems(
     pageSize: query.pageSize,
     total: Number(total),
     stats: computeStats(sums),
+  }
+}
+
+// 台账批次列表（按导入时间倒序，用于追溯导入来源）
+export async function listLedgerBatches(shopIds: string[] | null, page: number, pageSize: number) {
+  const filters: SQL[] = []
+  if (shopIds) filters.push(inArray(ledgerBatches.shopId, shopIds))
+  const where = filters.length > 0 ? and(...filters) : undefined
+
+  const [{ total }] = await db.select({ total: count(ledgerBatches.id) })
+    .from(ledgerBatches)
+    .where(where)
+
+  const rows = await db.select({
+    id: ledgerBatches.id,
+    shopId: ledgerBatches.shopId,
+    shopName: shops.name,
+    fileName: ledgerBatches.fileName,
+    uploadedBy: ledgerBatches.uploadedBy,
+    totalRows: ledgerBatches.totalRows,
+    createdAt: ledgerBatches.createdAt,
+  })
+    .from(ledgerBatches)
+    .innerJoin(shops, eq(ledgerBatches.shopId, shops.id))
+    .where(where)
+    .orderBy(desc(ledgerBatches.createdAt))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+
+  return {
+    items: rows.map((row) => ({
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+    })),
+    page,
+    pageSize,
+    total: Number(total),
   }
 }
 

@@ -1,9 +1,14 @@
-import type { LedgerImportResponseDto, LedgerListResponseDto } from '@sku-table/shared'
+import type { LedgerBatch, LedgerImportResponseDto, LedgerListResponseDto, PageResult } from '@sku-table/shared'
 import apiClient from './apiClient'
 
 export const ledgerService = {
   async list(params: { page: number; pageSize: number; shopId?: string | null; month?: string; keyword?: string }): Promise<LedgerListResponseDto> {
     const { data } = await apiClient.get<LedgerListResponseDto>('/ledger', { params })
+    return data
+  },
+
+  async listBatches(params: { page: number; pageSize: number; shopId?: string | null }): Promise<PageResult<LedgerBatch>> {
+    const { data } = await apiClient.get<PageResult<LedgerBatch>>('/ledger/batches', { params })
     return data
   },
 

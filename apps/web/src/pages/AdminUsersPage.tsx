@@ -3,7 +3,7 @@ import { App as AntdApp, Button, Card, Empty, Form, Input, Modal, Space, Switch,
 import type { ColumnsType } from 'antd/es/table'
 import { useCallback, useEffect, useState } from 'react'
 import type { AdminUserDto } from '@sku-table/shared'
-import { APP_COPY } from '../constants/app'
+import { APP_LABELS } from '../constants/app'
 import { adminUsersService } from '../services/adminUsersService'
 import './AdminUsersPage.css'
 
@@ -138,7 +138,7 @@ export function AdminUsersPage() {
       <div className="page-heading">
         <div>
           <Typography.Text className="eyebrow">ACCOUNTS</Typography.Text>
-          <Typography.Title level={1}>{APP_COPY.accountManagement}</Typography.Title>
+          <Typography.Title level={1}>{APP_LABELS.accountManagement}</Typography.Title>
           <Typography.Paragraph type="secondary">查看全部组长/客服账号，重置密码、停用或启用账号。</Typography.Paragraph>
         </div>
       </div>

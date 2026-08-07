@@ -34,7 +34,7 @@ export interface AppUser extends AuthUser {
   createdAt: string
 }
 
-// 员工工作批次
+// 员工工作批次（archivedAt/archivedBy 非空表示已按批次回滚，默认列表不展示）
 export interface EmployeeWorkBatch {
   id: string
   shopId: string
@@ -45,6 +45,8 @@ export interface EmployeeWorkBatch {
   fileName: string
   uploadedBy: string
   totalRows: number
+  archivedAt: string | null
+  archivedBy: string | null
   createdAt: string
 }
 

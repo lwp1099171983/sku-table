@@ -2,7 +2,7 @@ import { IdcardOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ScheduleOutl
 import { App as AntdApp, Avatar, Button, Dropdown, Form, Input, Layout, Menu, Modal, Select, Space, Tooltip, Typography } from 'antd'
 import { useMemo, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { APP_COPY } from '../constants/app'
+import { APP_LABELS } from '../constants/app'
 import { useAuth } from './AuthContext'
 import { useTheme } from './ThemeContext'
 import { authService } from '../services/authService'
@@ -22,12 +22,12 @@ export function AppLayout() {
   const [isSaving, setIsSaving] = useState(false)
 
   const menuItems = useMemo(() => [
-    { key: '/', icon: <ScheduleOutlined />, label: APP_COPY.employeeWork },
-    ...(canViewLedger ? [{ key: '/ledger', icon: <TableOutlined />, label: APP_COPY.ledger }] : []),
+    { key: '/', icon: <ScheduleOutlined />, label: APP_LABELS.employeeWork },
+    ...(canViewLedger ? [{ key: '/ledger', icon: <TableOutlined />, label: APP_LABELS.ledger }] : []),
     ...(isAdmin ? [
-      { key: '/admin/shops', icon: <ShopOutlined />, label: APP_COPY.shopManagement },
-      { key: '/admin/users', icon: <IdcardOutlined />, label: APP_COPY.accountManagement },
-      { key: '/admin/register', icon: <UserAddOutlined />, label: APP_COPY.adminRegistration },
+      { key: '/admin/shops', icon: <ShopOutlined />, label: APP_LABELS.shopManagement },
+      { key: '/admin/users', icon: <IdcardOutlined />, label: APP_LABELS.accountManagement },
+      { key: '/admin/register', icon: <UserAddOutlined />, label: APP_LABELS.adminRegistration },
     ] : []),
   ], [canViewLedger, isAdmin])
 
@@ -37,7 +37,7 @@ export function AppLayout() {
   const shopOptions = useMemo(() => {
     const options = shops.map((shop) => ({ value: shop.id, label: shop.name }))
     if (isAdmin) {
-      options.unshift({ value: ALL_SHOPS_VALUE, label: APP_COPY.allShops })
+      options.unshift({ value: ALL_SHOPS_VALUE, label: APP_LABELS.allShops })
     }
     return options
   }, [isAdmin, shops])
@@ -45,14 +45,14 @@ export function AppLayout() {
   const currentShopValue = currentShop?.id ?? ALL_SHOPS_VALUE
 
   const headerContext = location.pathname === '/admin/register'
-    ? APP_COPY.adminRegistration
+    ? APP_LABELS.adminRegistration
     : location.pathname === '/admin/shops'
-      ? APP_COPY.shopManagement
+      ? APP_LABELS.shopManagement
       : location.pathname === '/admin/users'
-        ? APP_COPY.accountManagement
+        ? APP_LABELS.accountManagement
         : location.pathname === '/ledger'
-          ? APP_COPY.ledger
-          : APP_COPY.employeeWork
+          ? APP_LABELS.ledger
+          : APP_LABELS.employeeWork
 
   async function handleChangePassword() {
     const values = await changePasswordForm.validateFields()
@@ -75,7 +75,7 @@ export function AppLayout() {
       <Sider breakpoint="lg" collapsedWidth="0" className="app-sider">
         <div className="brand-mark">
           <span className="brand-dot" />
-          <span>{APP_COPY.name}</span>
+          <span>{APP_LABELS.name}</span>
         </div>
         <Menu
           theme="dark"

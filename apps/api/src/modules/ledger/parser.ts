@@ -1,7 +1,5 @@
 import * as XLSX from 'xlsx'
-
-const MAX_ROWS = 50_000
-const MAX_FILE_SIZE = 20 * 1024 * 1024
+import { assertExcelFile, MAX_ROWS, normalizeHeader, normalizeText } from '../imports/xlsx.js'
 
 // 24 个字段的表头别名映射（normalizeHeader 后的 key）
 const headerAliases: Record<string, keyof ParsedLedgerItem> = {
@@ -64,21 +62,7 @@ export interface ParsedLedgerItem {
   remark: string | null
 }
 
-function normalizeHeader(value: unknown) {
-  return String(value ?? '')
-    .replace(/^\uFEFF/, '')
-    .replace(/[\s（）]/g, '')
-}
-
-function normalizeText(value: unknown) {
-  const text = String(value ?? '').trim()
-  return text || null
-}
-
-// 数值列按原始文本保存（含"超重"等公式错误文本），不校验数字
-function normalizeRawText(value: unknown) {
-  return normalizeText(value)
-}
+// 数值列按原始文本保存（含"超重"等公式错误文本），直接使用 normalizeText，不校验数字
 
 // 从订单日期提取月份（"2025-10-19..." → "10"）
 function extractMonth(orderDate: string | null) {
@@ -150,44 +134,45 @@ function parseSheet(sheet: XLSX.WorkSheet): ParsedLedgerItem[] {
     if (!isDataRow(row)) continue
 
     const rowNumber = index + 1
-    const get = (field: keyof ParsedLedgerItem) => row[headerMap.get(field) ?? -1]
+    const getField = (field: keyof ParsedLedgerItem) => row[headerMap.get(field) ?? -1]
 
-    const shopName = normalizeText(get('shopName'))
+    const shopName = normalizeText(getField('shopName'))
     if (!shopName) {
       throw new Error(`第 ${rowNumber} 行缺少店铺名称。`)
     }
 
     seqCounter += 1
-    const monthRaw = normalizeText(get('month'))
-    const orderDate = normalizeText(get('orderDate'))
+    const monthRaw = normalizeText(getField('month'))
+    const orderDate = normalizeText(getField('orderDate'))
     const month = monthRaw ?? extractMonth(orderDate)
 
     items.push({
       shopName,
-      seq: normalizeText(get('seq')) ?? String(seqCounter),
+      // 序号为空时按导入顺序自动生成（规格 4.2）
+      seq: normalizeText(getField('seq')) ?? String(seqCounter),
       month,
       orderDate,
-      orderNo: normalizeText(get('orderNo')),
-      trackingNo: normalizeText(get('trackingNo')),
-      salePrice: normalizeRawText(get('salePrice')),
-      quantity: normalizeRawText(get('quantity')),
-      unitPrice: normalizeRawText(get('unitPrice')),
-      purchaseAmount: normalizeRawText(get('purchaseAmount')),
-      purchaseDate: normalizeText(get('purchaseDate')),
-      purchasePlatform: normalizeText(get('purchasePlatform')),
-      purchaseOrderNo: normalizeText(get('purchaseOrderNo')),
-      grossProfit: normalizeRawText(get('grossProfit')),
-      channelName: normalizeText(get('channelName')),
-      packageWeight: normalizeRawText(get('packageWeight')),
-      freight: normalizeRawText(get('freight')),
-      commission: normalizeRawText(get('commission')),
-      netProfit: normalizeRawText(get('netProfit')),
-      ad22: normalizeRawText(get('ad22')),
-      ad22Net: normalizeRawText(get('ad22Net')),
-      ad30: normalizeRawText(get('ad30')),
-      ad30Net: normalizeRawText(get('ad30Net')),
-      compensation: normalizeRawText(get('compensation')),
-      remark: normalizeText(get('remark')),
+      orderNo: normalizeText(getField('orderNo')),
+      trackingNo: normalizeText(getField('trackingNo')),
+      salePrice: normalizeText(getField('salePrice')),
+      quantity: normalizeText(getField('quantity')),
+      unitPrice: normalizeText(getField('unitPrice')),
+      purchaseAmount: normalizeText(getField('purchaseAmount')),
+      purchaseDate: normalizeText(getField('purchaseDate')),
+      purchasePlatform: normalizeText(getField('purchasePlatform')),
+      purchaseOrderNo: normalizeText(getField('purchaseOrderNo')),
+      grossProfit: normalizeText(getField('grossProfit')),
+      channelName: normalizeText(getField('channelName')),
+      packageWeight: normalizeText(getField('packageWeight')),
+      freight: normalizeText(getField('freight')),
+      commission: normalizeText(getField('commission')),
+      netProfit: normalizeText(getField('netProfit')),
+      ad22: normalizeText(getField('ad22')),
+      ad22Net: normalizeText(getField('ad22Net')),
+      ad30: normalizeText(getField('ad30')),
+      ad30Net: normalizeText(getField('ad30Net')),
+      compensation: normalizeText(getField('compensation')),
+      remark: normalizeText(getField('remark')),
     })
 
     if (items.length > MAX_ROWS) {
@@ -204,14 +189,7 @@ function parseSheet(sheet: XLSX.WorkSheet): ParsedLedgerItem[] {
 
 // 按 sheet 顺序查找第一个能解析出台账的 sheet（兼容用户多 tab 文件）
 export async function parseLedgerFileAsync(file: File): Promise<ParsedLedgerItem[]> {
-  const fileName = file.name.toLowerCase()
-  if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
-    throw new Error('只支持 .xlsx 或 .xls 文件。')
-  }
-  if (file.size > MAX_FILE_SIZE) {
-    throw new Error('文件不能超过 20MB。')
-  }
-
+  assertExcelFile(file)
   const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' })
   let lastError: Error | null = null
   let ledgerSheetError: Error | null = null

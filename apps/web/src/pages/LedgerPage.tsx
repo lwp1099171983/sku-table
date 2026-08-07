@@ -1,11 +1,12 @@
-import { DeleteOutlined, DownloadOutlined, InboxOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
+import { DeleteOutlined, DownloadOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
 import { Alert, App as AntdApp, Button, Empty, Input, Modal, Pagination, Popconfirm, Progress, Space, Table, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { LedgerItem, LedgerStats } from '@sku-table/shared'
-import { APP_COPY } from '../constants/app'
+import type { LedgerBatch, LedgerItem, LedgerStats } from '@sku-table/shared'
+import { APP_LABELS } from '../constants/app'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import { useRecordDeletion } from '../hooks/useRecordDeletion'
 import { useAuth } from '../layouts/AuthContext'
 import { ledgerService } from '../services/ledgerService'
 import { downloadTemplate, templateFiles } from '../services/templateService'
@@ -36,7 +37,7 @@ function renderText(value: string | null) {
 
 export function LedgerPage() {
   const { canImportLedger, canDeleteLedger, currentShop } = useAuth()
-  const { message, modal } = AntdApp.useApp()
+  const { message } = AntdApp.useApp()
   const [file, setFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
@@ -50,8 +51,12 @@ export function LedgerPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
+  const [batches, setBatches] = useState<LedgerBatch[]>([])
+  const [batchPage, setBatchPage] = useState(1)
+  const [batchPageSize, setBatchPageSize] = useState(20)
+  const [batchTotal, setBatchTotal] = useState(0)
+  const [batchesLoading, setBatchesLoading] = useState(false)
 
   const shopId = currentShop?.id ?? null
 
@@ -75,7 +80,28 @@ export function LedgerPage() {
     }
   }, [debouncedKeyword, filterMonth, message, page, pageSize, shopId])
 
+  const loadBatches = useCallback(async () => {
+    setBatchesLoading(true)
+    try {
+      const result = await ledgerService.listBatches({ page: batchPage, pageSize: batchPageSize, shopId })
+      setBatches(result.items)
+      setBatchTotal(result.total)
+    } catch {
+      message.error('导入批次加载失败，请稍后重试。')
+    } finally {
+      setBatchesLoading(false)
+    }
+  }, [batchPage, batchPageSize, message, shopId])
+
   useEffect(() => { void loadItems() }, [loadItems])
+  useEffect(() => { if (isBatchModalOpen) void loadBatches() }, [isBatchModalOpen, loadBatches])
+
+  const { selectedRowKeys, setSelectedRowKeys, isDeleting, handleDelete, confirmDelete } = useRecordDeletion({
+    deleteItem: ledgerService.deleteItem,
+    batchDelete: ledgerService.batchDelete,
+    shopId,
+    onDeleted: loadItems,
+  })
 
   const uploadProps: UploadProps = {
     accept: '.xlsx,.xls',
@@ -113,34 +139,6 @@ export function LedgerPage() {
     } finally {
       setIsUploading(false)
     }
-  }
-
-  async function handleDelete(ids: number[]) {
-    setIsDeleting(true)
-    try {
-      const result = ids.length === 1
-        ? await ledgerService.deleteItem(ids[0], shopId)
-        : await ledgerService.batchDelete(ids, shopId)
-      message.success(`已删除 ${result.deleted.toLocaleString()} 条记录。`)
-      setSelectedRowKeys([])
-      await loadItems()
-    } catch (error) {
-      const apiMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message
-      message.error(apiMessage || '删除失败，请稍后重试。')
-    } finally {
-      setIsDeleting(false)
-    }
-  }
-
-  function confirmDelete(ids: number[]) {
-    modal.confirm({
-      title: `确认删除选中的 ${ids.length} 条台账记录？`,
-      content: '删除后不可恢复，同时会扣减对应导入批次的记录数，顶部统计会同步变化。',
-      okText: '删除',
-      okButtonProps: { danger: true },
-      cancelText: '取消',
-      onOk: () => handleDelete(ids),
-    })
   }
 
   const statCards: Array<{ label: string; value: number; highlight?: boolean }> = [
@@ -213,6 +211,13 @@ export function LedgerPage() {
     onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
   } : undefined
 
+  const batchColumns: ColumnsType<LedgerBatch> = [
+    { title: '店铺', dataIndex: 'shopName', key: 'shopName', width: 140 },
+    { title: '文件名', dataIndex: 'fileName', key: 'fileName', ellipsis: true },
+    { title: '行数', dataIndex: 'totalRows', key: 'totalRows', width: 80, align: 'right' as const, render: (value: number) => value.toLocaleString() },
+    { title: '导入时间', dataIndex: 'createdAt', key: 'createdAt', width: 180, render: (value: string) => new Date(value).toLocaleString('zh-CN', { hour12: false }) },
+  ]
+
   function resetFilters() {
     setFilterMonth('')
     setFilterKeyword('')
@@ -233,11 +238,12 @@ export function LedgerPage() {
       <div className="page-heading">
         <div>
           <Typography.Text className="eyebrow">ORDER LEDGER</Typography.Text>
-          <Typography.Title level={1}>{APP_COPY.ledger}</Typography.Title>
+          <Typography.Title level={1}>{APP_LABELS.ledger}</Typography.Title>
           <Typography.Paragraph type="secondary">订单统计表，Excel 导入保存原始值，顶部统计随筛选结果实时汇总。</Typography.Paragraph>
         </div>
         <Space className="page-actions">
           {canImportLedger && <Button type="primary" icon={<UploadOutlined />} onClick={() => setIsImportModalOpen(true)}>导入台账</Button>}
+          <Button icon={<HistoryOutlined />} onClick={() => setIsBatchModalOpen(true)}>导入记录</Button>
           <Button icon={<DownloadOutlined />} onClick={() => downloadTemplate(templateFiles.ledger, '台账模板.xlsx')}>下载模板</Button>
           <Button icon={<ReloadOutlined />} onClick={() => void loadItems()}>刷新</Button>
         </Space>
@@ -267,6 +273,41 @@ export function LedgerPage() {
         </div>
       </Modal>}
 
+      <Modal
+        title="导入记录"
+        open={isBatchModalOpen}
+        width={860}
+        footer={null}
+        onCancel={() => setIsBatchModalOpen(false)}
+        destroyOnClose
+      >
+        <Typography.Paragraph type="secondary">按批次追溯台账导入来源（文件名、店铺、行数、导入时间）。</Typography.Paragraph>
+        <Table
+          rowKey="id"
+          columns={batchColumns}
+          dataSource={batches}
+          loading={batchesLoading}
+          size="small"
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无导入批次" /> }}
+          pagination={{
+            current: batchPage,
+            pageSize: batchPageSize,
+            total: batchTotal,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50],
+            showTotal: (count) => `共 ${count.toLocaleString()} 个批次`,
+            onChange: (nextPage, nextPageSize) => {
+              if (nextPageSize !== batchPageSize) {
+                setBatchPageSize(nextPageSize)
+                setBatchPage(1)
+                return
+              }
+              setBatchPage(nextPage)
+            },
+          }}
+        />
+      </Modal>
+
       <div className="stats-grid">
         {statCards.map((card) => (
           <div className={`stat-card${card.highlight ? ' stat-card-highlight' : ''}`} key={card.label}>
@@ -280,7 +321,7 @@ export function LedgerPage() {
         <div className="section-heading">
           <div><Typography.Title level={4}>台账明细</Typography.Title><Typography.Text type="secondary">共 {total.toLocaleString()} 条记录（统计随筛选变化）</Typography.Text></div>
           {canDeleteLedger && selectedRowKeys.length > 0 && (
-            <Button danger icon={<DeleteOutlined />} loading={isDeleting} onClick={() => confirmDelete(selectedRowKeys.map(Number))}>
+            <Button danger icon={<DeleteOutlined />} loading={isDeleting} onClick={() => confirmDelete(selectedRowKeys.map(Number), `确认删除选中的 ${selectedRowKeys.length} 条台账记录？`, '删除后不可恢复，同时会扣减对应导入批次的记录数，顶部统计会同步变化。')}>
               批量删除（{selectedRowKeys.length}）
             </Button>
           )}

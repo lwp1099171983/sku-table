@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
-import type { Context } from 'hono'
 import { z } from 'zod'
 import { AccountExistsError, authenticate, changePassword, registerAdmin, switchCurrentShop } from '../modules/auth/auth.service.js'
 import { type AuthEnv, requireAuth } from '../modules/auth/auth.middleware.js'
+import { readBody } from './helpers.js'
 
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -23,16 +23,6 @@ const changePasswordSchema = z.object({
 const switchShopSchema = z.object({
   shopId: z.string().trim().min(1).nullable(),
 })
-
-async function readBody<T>(context: Context<AuthEnv>, schema: z.ZodType<T>) {
-  try {
-    const body = await context.req.json()
-    const result = schema.safeParse(body)
-    return result.success ? result.data : null
-  } catch {
-    return null
-  }
-}
 
 export const loginRoutes = new Hono<AuthEnv>()
 

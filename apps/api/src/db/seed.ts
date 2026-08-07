@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { sql } from 'drizzle-orm'
+import { BCRYPT_ROUNDS } from '../modules/auth/constants.js'
 import { ALL_ROLE_CODES, PERMISSION_CATALOG, ROLE_CATALOG, ROLE_PERMISSIONS } from '../modules/auth/rbac.js'
 import { db, closeDatabase } from './client.js'
 import { appUsers, permissions, rolePermissions, roles, shops } from './schema.js'
@@ -16,7 +17,7 @@ async function seed() {
     throw new Error('SEED_USER_PASSWORD 至少需要 8 个字符。')
   }
 
-  const passwordHash = await bcrypt.hash(password, 12)
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
 
   await db.transaction(async (tx) => {
     // 1. 角色与权限目录（幂等 upsert）

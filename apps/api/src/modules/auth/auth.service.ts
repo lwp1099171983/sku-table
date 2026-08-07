@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import type { AuthContextDto, LoginResponseDto } from '@sku-table/shared'
 import { env } from '../../config/env.js'
+import { BCRYPT_ROUNDS } from './constants.js'
 import {
   createUser,
   findActiveUserById,
@@ -131,7 +132,7 @@ export async function changePassword(userId: string, oldPassword: string, newPas
   if (!user || !(await bcrypt.compare(oldPassword, user.passwordHash))) {
     return false
   }
-  const passwordHash = await bcrypt.hash(newPassword, 12)
+  const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS)
   await updateUserPassword(userId, passwordHash)
   return true
 }
@@ -151,7 +152,7 @@ export async function registerAdmin(input: {
     throw new AccountExistsError()
   }
 
-  const passwordHash = await bcrypt.hash(input.password, 12)
+  const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS)
 
   try {
     const user = await createUser({

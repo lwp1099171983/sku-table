@@ -1,4 +1,5 @@
-export const APP_COPY = {
+// 全局界面文案（品牌名、导航与页面标题）
+export const APP_LABELS = {
   name: '选品工作台',
   englishName: 'TEAM PRODUCT WORKSPACE',
   employeeWork: '员工工作记录',

@@ -1,9 +1,19 @@
-import type { EmployeeWorkImportResponseDto, EmployeeWorkListResponseDto } from '@sku-table/shared'
+import type { EmployeeWorkBatch, EmployeeWorkImportResponseDto, EmployeeWorkListResponseDto, PageResult } from '@sku-table/shared'
 import apiClient from './apiClient'
 
 export const employeeWorkService = {
   async list(params: { page: number; pageSize: number; shopId?: string | null; employeeName?: string; workDate?: string; sku?: string }): Promise<EmployeeWorkListResponseDto> {
     const { data } = await apiClient.get<EmployeeWorkListResponseDto>('/employee-work', { params })
+    return data
+  },
+
+  async listBatches(params: { page: number; pageSize: number; shopId?: string | null }): Promise<PageResult<EmployeeWorkBatch>> {
+    const { data } = await apiClient.get<PageResult<EmployeeWorkBatch>>('/employee-work/batches', { params })
+    return data
+  },
+
+  async rollbackBatch(batchId: string): Promise<{ batch: EmployeeWorkBatch }> {
+    const { data } = await apiClient.post<{ batch: EmployeeWorkBatch }>(`/employee-work/batches/${batchId}/rollback`)
     return data
   },
 

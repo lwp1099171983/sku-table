@@ -1,7 +1,5 @@
 import * as XLSX from 'xlsx'
-
-const MAX_ROWS = 50_000
-const MAX_FILE_SIZE = 20 * 1024 * 1024
+import { assertExcelFile, MAX_ROWS, normalizeHeader, normalizeText } from '../imports/xlsx.js'
 
 const headerAliases: Record<string, keyof ParsedEmployeeWorkItem> = {
   '序号': 'seq',
@@ -26,17 +24,6 @@ export interface ParsedEmployeeWorkItem {
   price: string | null
 }
 
-function normalizeHeader(value: unknown) {
-  return String(value ?? '')
-    .replace(/^\uFEFF/, '')
-    .replace(/[\s（）]/g, '')
-}
-
-function normalizeText(value: unknown) {
-  const text = String(value ?? '').trim()
-  return text || null
-}
-
 function normalizePrice(value: unknown, rowNumber: number) {
   const text = normalizeText(value)
   if (text === null) return null
@@ -49,14 +36,7 @@ function normalizePrice(value: unknown, rowNumber: number) {
 }
 
 export async function parseEmployeeWorkFileAsync(file: File): Promise<ParsedEmployeeWorkItem[]> {
-  const fileName = file.name.toLowerCase()
-  if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
-    throw new Error('只支持 .xlsx 或 .xls 文件。')
-  }
-  if (file.size > MAX_FILE_SIZE) {
-    throw new Error('文件不能超过 20MB。')
-  }
-
+  assertExcelFile(file)
   const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' })
   return parseWorkbook(workbook)
 }

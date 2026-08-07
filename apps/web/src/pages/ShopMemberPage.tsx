@@ -3,7 +3,7 @@ import { App as AntdApp, Button, Card, Empty, Form, Input, List, Modal, Popconfi
 import type { ColumnsType } from 'antd/es/table'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Shop, ShopMemberDto } from '@sku-table/shared'
-import { APP_COPY } from '../constants/app'
+import { APP_LABELS } from '../constants/app'
 import { useAuth } from '../layouts/AuthContext'
 import { shopsService } from '../services/shopsService'
 import './ShopMemberPage.css'
@@ -244,7 +244,7 @@ export function ShopMemberPage() {
       <div className="page-heading">
         <div>
           <Typography.Text className="eyebrow">SHOPS & MEMBERS</Typography.Text>
-          <Typography.Title level={1}>{APP_COPY.shopManagement}</Typography.Title>
+          <Typography.Title level={1}>{APP_LABELS.shopManagement}</Typography.Title>
           <Typography.Paragraph type="secondary">创建店铺、给组长/客服分配角色与店铺、单独开通删除权限。</Typography.Paragraph>
         </div>
         <Space className="page-actions">

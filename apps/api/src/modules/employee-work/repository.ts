@@ -23,6 +23,8 @@ function toPublicBatch(batch: typeof employeeWorkBatches.$inferSelect, shopName:
     fileName: batch.fileName,
     uploadedBy: batch.uploadedBy,
     totalRows: batch.totalRows,
+    archivedAt: batch.archivedAt?.toISOString() ?? null,
+    archivedBy: batch.archivedBy ?? null,
     createdAt: batch.createdAt.toISOString(),
   }
 }
@@ -158,6 +160,75 @@ export async function listEmployeeNames(shopIds: string[] | null) {
     .orderBy(asc(employees.name))
 
   return [...new Set(rows.map((row) => row.employeeName))]
+}
+
+// 员工工作批次列表（按导入时间倒序，用于追溯导入来源与回滚入口）
+export async function listEmployeeWorkBatches(shopIds: string[] | null, page: number, pageSize: number) {
+  const filters: SQL[] = []
+  if (shopIds) filters.push(inArray(employeeWorkBatches.shopId, shopIds))
+  const where = filters.length > 0 ? and(...filters) : undefined
+
+  const [{ total }] = await db.select({ total: count(employeeWorkBatches.id) })
+    .from(employeeWorkBatches)
+    .where(where)
+
+  const rows = await db.select({
+    id: employeeWorkBatches.id,
+    shopId: employeeWorkBatches.shopId,
+    shopName: shops.name,
+    employeeName: employeeWorkBatches.employeeName,
+    employeeId: employeeWorkBatches.employeeId,
+    workDate: employeeWorkBatches.workDate,
+    fileName: employeeWorkBatches.fileName,
+    uploadedBy: employeeWorkBatches.uploadedBy,
+    totalRows: employeeWorkBatches.totalRows,
+    archivedAt: employeeWorkBatches.archivedAt,
+    archivedBy: employeeWorkBatches.archivedBy,
+    createdAt: employeeWorkBatches.createdAt,
+  })
+    .from(employeeWorkBatches)
+    .innerJoin(shops, eq(employeeWorkBatches.shopId, shops.id))
+    .where(where)
+    .orderBy(desc(employeeWorkBatches.createdAt))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+
+  return {
+    items: rows.map((row) => ({
+      ...row,
+      archivedAt: row.archivedAt?.toISOString() ?? null,
+      archivedBy: row.archivedBy ?? null,
+      createdAt: row.createdAt.toISOString(),
+    })),
+    page,
+    pageSize,
+    total: Number(total),
+  }
+}
+
+// 按批次回滚：置归档标记（archived_at/archived_by），默认列表查询排除已归档批次
+export async function rollbackEmployeeWorkBatch(batchId: string, userId: string) {
+  const [updated] = await db.update(employeeWorkBatches)
+    .set({ archivedAt: new Date(), archivedBy: userId, updatedAt: new Date() })
+    .where(and(eq(employeeWorkBatches.id, batchId), isNull(employeeWorkBatches.archivedAt)))
+    .returning()
+  if (!updated) {
+    return null
+  }
+  return {
+    id: updated.id,
+    shopId: updated.shopId,
+    shopName: await getShopName(updated.shopId),
+    employeeName: updated.employeeName,
+    employeeId: updated.employeeId,
+    workDate: updated.workDate,
+    fileName: updated.fileName,
+    uploadedBy: updated.uploadedBy,
+    totalRows: updated.totalRows,
+    archivedAt: updated.archivedAt?.toISOString() ?? null,
+    archivedBy: updated.archivedBy ?? null,
+    createdAt: updated.createdAt.toISOString(),
+  }
 }
 
 // 硬删除明细并同步扣减批次 total_rows（不低于 0），返回删除条数
