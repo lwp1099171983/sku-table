@@ -2,7 +2,7 @@ const TEMPLATE_DIRECTORY = '/templates'
 
 export const templateFiles = {
   employeeWork: `${TEMPLATE_DIRECTORY}/employee-work-template.xlsx`,
-  pricing: `${TEMPLATE_DIRECTORY}/pricing-template.xlsx`,
+  ledger: `${TEMPLATE_DIRECTORY}/ledger-template.xlsx`,
 } as const
 
 export function downloadTemplate(path: string, fileName: string) {

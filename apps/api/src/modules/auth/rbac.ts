@@ -2,51 +2,46 @@ import type { PermissionCode, UserRole } from '@sku-table/shared'
 
 // 权限目录：由 seed 管理，v1 不开放任意创建权限码
 export const PERMISSION_CATALOG: ReadonlyArray<{ code: PermissionCode; name: string; description: string }> = [
-  { code: 'studio.manage', name: '工作室管理', description: '创建和管理工作室。' },
-  { code: 'member.read', name: '成员查看', description: '查看工作室成员。' },
-  { code: 'member.manage', name: '成员管理', description: '添加、修改和移除工作室成员。' },
+  { code: 'shop.manage', name: '店铺管理', description: '创建和管理店铺。' },
+  { code: 'member.read', name: '成员查看', description: '查看店铺成员。' },
+  { code: 'member.manage', name: '成员管理', description: '添加、修改和移除店铺成员。' },
   { code: 'employee_work.read', name: '员工工作查看', description: '查看员工工作记录。' },
   { code: 'employee_work.import', name: '员工工作导入', description: '导入员工工作 Excel。' },
   { code: 'employee_work.delete', name: '员工工作删除', description: '删除员工工作数据。' },
   { code: 'employee_work.rollback', name: '员工工作回滚', description: '按批次回滚员工工作数据。' },
-  { code: 'pricing.read', name: '定价查看', description: '查看选品定价数据。' },
-  { code: 'pricing.import', name: '定价导入', description: '导入选品定价 Excel。' },
-  { code: 'pricing.edit', name: '定价编辑', description: '编辑定价原始字段。' },
-  { code: 'pricing.delete', name: '定价删除', description: '删除定价数据。' },
-  { code: 'pricing.rollback', name: '定价回滚', description: '按批次回滚定价数据。' },
-  { code: 'product.read', name: '商品查看', description: '查看商品库。' },
-  { code: 'product.import', name: '商品导入', description: '导入商品 Excel。' },
-  { code: 'product.note.edit', name: '内部备注编辑', description: '编辑商品内部备注。' },
-  { code: 'product.fields.edit', name: '商品字段编辑', description: '编辑商品原始字段。' },
-  { code: 'product.delete', name: '商品删除', description: '删除商品。' },
-  { code: 'product.rollback', name: '商品回滚', description: '按批次回滚商品数据。' },
+  { code: 'ledger.read', name: '台账查看', description: '查看订单台账。' },
+  { code: 'ledger.import', name: '台账导入', description: '导入订单台账 Excel。' },
+  { code: 'ledger.delete', name: '台账删除', description: '删除台账数据。' },
 ]
 
 // 预置角色目录
 export const ROLE_CATALOG: ReadonlyArray<{ code: UserRole; name: string; description: string }> = [
-  { code: 'owner', name: '负责人', description: '拥有全部权限。' },
-  { code: 'selector', name: '选品员', description: '查看和导入员工工作、选品定价，查看商品，编辑内部备注。' },
-  { code: 'operator', name: '客服/运营', description: '查看全部数据，编辑内部备注。' },
+  { code: 'admin', name: '管理员', description: '全局账号，拥有全部权限，可查看全部店铺。' },
+  { code: 'leader', name: '组长', description: '按店铺授权，可查看和导入员工工作与台账。' },
+  { code: 'customer', name: '客服', description: '按店铺授权，只能查看员工工作记录。' },
 ]
 
-// 角色-权限矩阵（owner 拥有全部，其他按业务开放）
+// 角色-权限矩阵（admin 拥有全部，delete 权限不预置给任何角色）
 export const ROLE_PERMISSIONS: Record<UserRole, readonly PermissionCode[]> = {
-  owner: PERMISSION_CATALOG.map((permission) => permission.code),
-  selector: [
+  admin: PERMISSION_CATALOG.map((permission) => permission.code),
+  leader: [
     'employee_work.read',
     'employee_work.import',
-    'pricing.read',
-    'pricing.import',
-    'product.read',
-    'product.import',
-    'product.note.edit',
+    'ledger.read',
+    'ledger.import',
   ],
-  operator: [
+  customer: [
     'employee_work.read',
-    'pricing.read',
-    'product.read',
-    'product.note.edit',
   ],
 }
 
-export const ALL_ROLE_CODES: readonly UserRole[] = ['owner', 'selector', 'operator']
+export const ALL_ROLE_CODES: readonly UserRole[] = ['admin', 'leader', 'customer']
+
+// 允许管理员通过成员管理单独开通/关闭的用户级权限（删除类）
+export const MEMBER_ASSIGNABLE_PERMISSIONS: readonly PermissionCode[] = [
+  'employee_work.delete',
+  'ledger.delete',
+]
+
+// 成员管理可分配的角色（admin 通过注册管理员页创建，不在此列）
+export const MEMBER_ROLE_CODES: readonly UserRole[] = ['leader', 'customer']

@@ -3,20 +3,20 @@ import type {
   AuthUser,
   EmployeeWorkBatch,
   EmployeeWorkItem,
-  ImportBatch,
+  LedgerBatch,
+  LedgerItem,
+  LedgerStats,
   PageResult,
   PermissionCode,
-  Product,
-  ProductPricing,
-  PricingBatch,
-  Studio,
+  Shop,
   UserRole,
 } from './type.js'
 
+// currentShop 为 null 表示管理员"全部"视图
 export interface AuthContextDto {
   user: AuthUser
-  studios: Studio[]
-  currentStudio: Studio
+  shops: Shop[]
+  currentShop: Shop | null
   roles: UserRole[]
   permissions: PermissionCode[]
 }
@@ -33,6 +33,10 @@ export interface LoginResponseDto extends AuthContextDto {
 
 export interface MeResponseDto extends AuthContextDto {}
 
+export interface SwitchShopRequestDto {
+  shopId: string | null
+}
+
 export interface RegisterAdminRequestDto {
   email: string
   password: string
@@ -43,64 +47,50 @@ export interface RegisterAdminResponseDto {
   user: AuthUser
 }
 
-export interface CreateStudioRequestDto {
+export interface CreateShopRequestDto {
   name: string
 }
 
-export interface CreateStudioResponseDto {
-  studio: Studio
+export interface CreateShopResponseDto {
+  shop: Shop
 }
 
-export interface StudioMemberDto {
+export interface ShopMemberDirectPermissionDto {
+  permissionCode: PermissionCode
+  effect: 'allow' | 'deny'
+}
+
+export interface ShopMemberDto {
   user: AuthUser
   roles: UserRole[]
+  directPermissions: ShopMemberDirectPermissionDto[]
   isActive: boolean
   createdAt: string
 }
 
-export interface StudioMemberListResponseDto {
-  items: StudioMemberDto[]
+export interface ShopMemberListResponseDto {
+  items: ShopMemberDto[]
 }
 
-export interface AddStudioMemberRequestDto {
+export interface AddShopMemberRequestDto {
   email: string
   displayName?: string
   password?: string
   roles?: UserRole[]
 }
 
-export interface UpdateStudioMemberRequestDto {
+export interface UpdateShopMemberRequestDto {
   roles?: UserRole[]
   isActive?: boolean
 }
 
+export interface SetShopMemberPermissionRequestDto {
+  permissionCode: 'employee_work.delete' | 'ledger.delete'
+  effect: 'allow' | 'deny' | null
+}
+
 export interface ActiveUserListResponseDto {
   items: AppUser[]
-}
-
-export interface ProductListQueryDto {
-  page?: number
-  pageSize?: number
-  createdBy?: string
-}
-
-export type ProductListResponseDto = PageResult<Product>
-
-export interface UpdateInternalNoteRequestDto {
-  internalNote: string
-}
-
-export interface ImportBatchResponseDto {
-  batch: ImportBatch
-}
-
-export interface ImportProgressDto {
-  batchId: string
-  status: ImportBatch['status']
-  totalRows: number
-  processedRows: number
-  successRows: number
-  failedRows: number
 }
 
 export interface ApiErrorDto {
@@ -112,6 +102,7 @@ export interface ApiErrorDto {
 export interface EmployeeWorkListQueryDto {
   page?: number
   pageSize?: number
+  shopId?: string
   employeeName?: string
   workDate?: string
   sku?: string
@@ -124,16 +115,19 @@ export interface EmployeeWorkImportResponseDto {
   importedRows: number
 }
 
-export interface PricingListQueryDto {
+export interface LedgerListQueryDto {
   page?: number
   pageSize?: number
-  store?: string
+  shopId?: string
+  month?: string
   keyword?: string
 }
 
-export type PricingListResponseDto = PageResult<ProductPricing>
+export interface LedgerListResponseDto extends PageResult<LedgerItem> {
+  stats: LedgerStats
+}
 
-export interface PricingImportResponseDto {
-  batch: PricingBatch
+export interface LedgerImportResponseDto {
+  batches: LedgerBatch[]
   importedRows: number
 }

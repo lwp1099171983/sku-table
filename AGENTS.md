@@ -48,13 +48,12 @@
 │       ├── src/
 │       │   ├── app.ts              # Hono 应用组装（入口，挂载全部路由）
 │       │   ├── server.ts           # Node 服务启动入口
-│       │   ├── routes/             # HTTP 路由层（auth/employeeWork/pricing/products/studios/imports/users/health）
+│       │   ├── routes/             # HTTP 路由层（auth/employeeWork/ledger/shops/health）
 │       │   ├── modules/            # 业务层，按领域拆分（repository/service/parser）
 │       │   │   ├── auth/           # 认证、令牌、RBAC
 │       │   │   ├── employee-work/  # 员工工作记录
-│       │   │   ├── pricing/        # 定价
-│       │   │   ├── products/       # 产品
-│       │   │   └── studios/        # 工作室
+│       │   │   ├── ledger/         # 台账（订单统计表，导入/列表/统计/删除）
+│       │   │   └── shops/          # 店铺与成员管理
 │       │   ├── middleware/         # 错误处理、认证等通用中间件
 │       │   ├── config/             # 环境变量和运行时配置
 │       │   └── db/                 # client、schema、migrate、seed、migrations
@@ -85,6 +84,8 @@
 | 新增/修改前端页面 | `apps/web/src/pages` + 对应 `services/` |
 | 新增/修改 API | `apps/api/src/routes` + 对应 `modules/` |
 | 认证与权限 | `apps/api/src/modules/auth`、`routes/auth.ts`、`layouts/AuthContext.tsx` |
+| 台账 | `apps/api/src/modules/ledger`、`routes/ledger.ts`、`pages/LedgerPage.tsx` |
+| 店铺与成员 | `apps/api/src/modules/shops`、`routes/shops.ts`、`pages/ShopMemberPage.tsx` |
 | 数据库变更 | `apps/api/src/db`（schema + migrations + seed） |
 | 前后端共享类型 | `packages/shared/src` |
 | 部署与运维 | `infra/` |

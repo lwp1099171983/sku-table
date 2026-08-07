@@ -1,6 +1,6 @@
 import type { Context, MiddlewareHandler } from 'hono'
 import type { AuthContextDto, PermissionCode } from '@sku-table/shared'
-import { getActivePublicUser, loadAuthContext, loadAuthContextForStudio } from './auth.service.js'
+import { getActivePublicUser, loadAuthContext, loadAuthContextForShop } from './auth.service.js'
 import { verifyAccessToken } from './token.js'
 
 export type AuthEnv = {
@@ -43,7 +43,7 @@ export const requireAuth: MiddlewareHandler<AuthEnv> = async (context, next) => 
   }
 }
 
-// 权限校验：基于服务端计算的当前工作室权限，不接受客户端传入的权限
+// 权限校验：基于服务端计算的当前店铺权限，不接受客户端传入的权限
 export function requirePermission(permission: PermissionCode): MiddlewareHandler<AuthEnv> {
   return async (context, next) => {
     if (!context.get('authContext').permissions.includes(permission)) {
@@ -53,8 +53,8 @@ export function requirePermission(permission: PermissionCode): MiddlewareHandler
   }
 }
 
-// 针对 :studioId 路径参数的权限中间件：自校验登录、成员关系与目标工作室权限
-export function requireStudioPermission(permission: PermissionCode): MiddlewareHandler<AuthEnv> {
+// 针对 :shopId 路径参数的权限中间件：管理员可操作任意店铺；成员必须是被分配店铺且拥有目标权限
+export function requireShopPermission(permission: PermissionCode): MiddlewareHandler<AuthEnv> {
   return async (context, next) => {
     let authUser = context.get('authUser')
     if (!authUser) {
@@ -78,15 +78,15 @@ export function requireStudioPermission(permission: PermissionCode): MiddlewareH
       }
     }
 
-    const studioId = context.req.param('studioId')
-    const studioContext = await loadAuthContextForStudio(authUser.id, studioId)
-    if (!studioContext) {
-      return forbidden(context, '您不是该工作室成员。')
+    const shopId = context.req.param('shopId')
+    const shopContext = await loadAuthContextForShop(authUser.id, shopId)
+    if (!shopContext) {
+      return forbidden(context, '您不是该店铺成员。')
     }
-    if (!studioContext.permissions.includes(permission)) {
+    if (!shopContext.permissions.includes(permission)) {
       return forbidden(context)
     }
-    context.set('authContext', studioContext)
+    context.set('authContext', shopContext)
     await next()
   }
 }

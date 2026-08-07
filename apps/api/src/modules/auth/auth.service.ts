@@ -1,14 +1,16 @@
 import bcrypt from 'bcryptjs'
 import type { AuthContextDto, LoginResponseDto } from '@sku-table/shared'
 import { env } from '../../config/env.js'
-import { addUserToStudioWithRoles } from '../studios/studio.repository.js'
 import {
   createUser,
   findActiveUserById,
+  findShopById,
   findUserByEmail,
   getEffectivePermissions,
   getMemberRoles,
-  listUserStudios,
+  listAllPermissionCodes,
+  listAllShops,
+  listUserShops,
 } from './auth.repository.js'
 import { createAccessToken } from './token.js'
 
@@ -28,37 +30,76 @@ export function toPublicAuthUser(user: {
   return { id: user.id, email: user.email, displayName: user.displayName }
 }
 
-// 加载用户当前默认工作室（第一个可访问工作室）的完整认证上下文
-export async function loadAuthContext(userId: string): Promise<AuthContextDto | null> {
-  return loadAuthContextForStudio(userId)
+// 管理员：全部店铺 + 全部权限；currentShop 为 null 表示"全部"视图
+async function buildAdminContext(user: { id: string; email: string; displayName: string | null }, shopId?: string): Promise<AuthContextDto | null> {
+  const shops = await listAllShops()
+  let currentShop = null
+  if (shopId) {
+    const target = await findShopById(shopId)
+    if (!target) {
+      return null
+    }
+    currentShop = target
+  }
+  return {
+    user: toPublicAuthUser(user),
+    shops,
+    currentShop,
+    roles: ['admin'],
+    permissions: await listAllPermissionCodes(),
+  }
 }
 
-// 加载指定工作室的认证上下文；不是成员或无工作室时返回 null
-export async function loadAuthContextForStudio(userId: string, studioId?: string): Promise<AuthContextDto | null> {
+// 非管理员：按店铺成员关系加载上下文
+async function buildMemberContext(user: { id: string; email: string; displayName: string | null }, shopId?: string): Promise<AuthContextDto | null> {
+  const shops = await listUserShops(user.id)
+  if (shops.length === 0) {
+    return null
+  }
+
+  const currentShop = shopId ? shops.find((shop) => shop.id === shopId) : shops[0]
+  if (!currentShop) {
+    return null
+  }
+
+  const roles = await getMemberRoles(currentShop.id, user.id)
+  const permissions = await getEffectivePermissions(currentShop.id, user.id)
+  return {
+    user: toPublicAuthUser(user),
+    shops,
+    currentShop,
+    roles,
+    permissions,
+  }
+}
+
+// 加载用户默认认证上下文（管理员默认"全部"；成员默认第一个可访问店铺）
+export async function loadAuthContext(userId: string): Promise<AuthContextDto | null> {
   const user = await findActiveUserById(userId)
   if (!user) {
     return null
   }
+  const publicUser = { id: user.id, email: user.email, displayName: user.displayName }
+  return user.isAdmin
+    ? buildAdminContext(publicUser)
+    : buildMemberContext(publicUser)
+}
 
-  const studios = await listUserStudios(userId)
-  if (studios.length === 0) {
+// 加载指定店铺的认证上下文（管理员可切任意店铺或"全部"；成员只能切被分配的店铺）
+export async function loadAuthContextForShop(userId: string, shopId?: string): Promise<AuthContextDto | null> {
+  const user = await findActiveUserById(userId)
+  if (!user) {
     return null
   }
+  const publicUser = { id: user.id, email: user.email, displayName: user.displayName }
+  return user.isAdmin
+    ? buildAdminContext(publicUser, shopId)
+    : buildMemberContext(publicUser, shopId)
+}
 
-  const currentStudio = studioId ? studios.find((studio) => studio.id === studioId) : studios[0]
-  if (!currentStudio) {
-    return null
-  }
-
-  const roles = await getMemberRoles(currentStudio.id, userId)
-  const permissions = await getEffectivePermissions(currentStudio.id, userId)
-  return {
-    user: toPublicAuthUser(user),
-    studios,
-    currentStudio,
-    roles,
-    permissions,
-  }
+// 切换当前店铺：管理员可传 null（全部）；成员只能传自己已分配的店铺
+export async function switchCurrentShop(userId: string, shopId: string | null): Promise<AuthContextDto | null> {
+  return loadAuthContextForShop(userId, shopId ?? undefined)
 }
 
 export async function authenticate(email: string, password: string): Promise<LoginResponseDto | null> {
@@ -87,12 +128,11 @@ export async function getActivePublicUser(id: string): Promise<PublicAuthUser | 
   return user ? toPublicAuthUser(user) : null
 }
 
-// 注册新管理员：创建账号并加入当前工作室的 owner 角色
+// 注册新管理员：全局账号（is_admin = true），不绑定店铺
 export async function registerAdmin(input: {
   email: string
   password: string
   displayName?: string
-  studioId: string
 }) {
   if (await findUserByEmail(input.email)) {
     throw new AccountExistsError()
@@ -105,8 +145,8 @@ export async function registerAdmin(input: {
       email: input.email,
       passwordHash,
       displayName: input.displayName || null,
+      isAdmin: true,
     })
-    await addUserToStudioWithRoles(input.studioId, user.id, ['owner'])
     return toPublicAuthUser(user)
   } catch (error) {
     if ((error as { code?: string }).code === '23505') {

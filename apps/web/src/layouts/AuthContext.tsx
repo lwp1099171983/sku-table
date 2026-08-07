@@ -1,18 +1,24 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import type { AuthUser, Studio, UserRole } from '@sku-table/shared'
+import type { AuthUser, PermissionCode, Shop, UserRole } from '@sku-table/shared'
 import { authService } from '../services/authService'
 
 interface AuthContextValue {
   user: AuthUser | null
   roles: UserRole[]
-  permissions: string[]
-  studios: Studio[]
-  currentStudio: Studio | null
+  permissions: PermissionCode[]
+  shops: Shop[]
+  currentShop: Shop | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  canImport: boolean
-  isOwner: boolean
+  switchShop: (shopId: string | null) => Promise<void>
+  hasPermission: (permission: PermissionCode) => boolean
+  canImportEmployeeWork: boolean
+  canDeleteEmployeeWork: boolean
+  canImportLedger: boolean
+  canDeleteLedger: boolean
+  canViewLedger: boolean
+  isAdmin: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -20,17 +26,17 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [roles, setRoles] = useState<UserRole[]>([])
-  const [permissions, setPermissions] = useState<string[]>([])
-  const [studios, setStudios] = useState<Studio[]>([])
-  const [currentStudio, setCurrentStudio] = useState<Studio | null>(null)
+  const [permissions, setPermissions] = useState<PermissionCode[]>([])
+  const [shops, setShops] = useState<Shop[]>([])
+  const [currentShop, setCurrentShop] = useState<Shop | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   const clearAuthState = () => {
     setUser(null)
     setRoles([])
     setPermissions([])
-    setStudios([])
-    setCurrentStudio(null)
+    setShops([])
+    setCurrentShop(null)
   }
 
   useEffect(() => {
@@ -47,8 +53,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(context.user)
         setRoles(context.roles)
         setPermissions(context.permissions)
-        setStudios(context.studios)
-        setCurrentStudio(context.currentStudio)
+        setShops(context.shops)
+        setCurrentShop(context.currentShop)
       })
       .catch(() => clearAuthState())
       .finally(() => setIsLoading(false))
@@ -60,26 +66,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     roles,
     permissions,
-    studios,
-    currentStudio,
+    shops,
+    currentShop,
     isLoading,
-    canImport: permissions.includes('employee_work.import')
-      || permissions.includes('pricing.import')
-      || permissions.includes('product.import'),
-    isOwner: roles.includes('owner'),
+    hasPermission: (permission) => permissions.includes(permission),
+    canImportEmployeeWork: permissions.includes('employee_work.import'),
+    canDeleteEmployeeWork: permissions.includes('employee_work.delete'),
+    canImportLedger: permissions.includes('ledger.import'),
+    canDeleteLedger: permissions.includes('ledger.delete'),
+    canViewLedger: permissions.includes('ledger.read'),
+    isAdmin: roles.includes('admin'),
     async login(email, password) {
       const response = await authService.login({ email, password })
       setUser(response.user)
       setRoles(response.roles)
       setPermissions(response.permissions)
-      setStudios(response.studios)
-      setCurrentStudio(response.currentStudio)
+      setShops(response.shops)
+      setCurrentShop(response.currentShop)
     },
     async logout() {
       await authService.logout()
       clearAuthState()
     },
-  }), [isLoading, user, roles, permissions, studios, currentStudio])
+    async switchShop(shopId) {
+      const response = await authService.switchShop({ shopId })
+      setRoles(response.roles)
+      setPermissions(response.permissions)
+      setShops(response.shops)
+      setCurrentShop(response.currentShop)
+    },
+  }), [isLoading, user, roles, permissions, shops, currentShop])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

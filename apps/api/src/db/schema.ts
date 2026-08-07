@@ -5,7 +5,6 @@ import {
   date,
   index,
   integer,
-  jsonb,
   numeric,
   pgTable,
   primaryKey,
@@ -14,13 +13,15 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
-import type { ImportBatchStatus, ImportRowError, PermissionCode, UserRole } from '@sku-table/shared'
+import type { PermissionCode, UserRole } from '@sku-table/shared'
 
 export const appUsers = pgTable('app_users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull(),
   passwordHash: text('password_hash').notNull(),
   displayName: text('display_name'),
+  // 全局管理员：可看全部店铺、拥有全部权限
+  isAdmin: boolean('is_admin').notNull().default(false),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -31,27 +32,27 @@ export const appUsers = pgTable('app_users', {
 
 export type AppUserRow = typeof appUsers.$inferSelect
 
-export const studios = pgTable('studios', {
+export const shops = pgTable('shops', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
-  uniqueIndex('studios_name_unique').on(sql`lower(${table.name})`),
+  uniqueIndex('shops_name_unique').on(sql`lower(${table.name})`),
 ])
 
-export type StudioRow = typeof studios.$inferSelect
+export type ShopRow = typeof shops.$inferSelect
 
-export const studioMembers = pgTable('studio_members', {
-  studioId: uuid('studio_id').notNull(),
+export const shopMembers = pgTable('shop_members', {
+  shopId: uuid('shop_id').notNull(),
   userId: uuid('user_id').notNull(),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
-  primaryKey({ columns: [table.studioId, table.userId] }),
+  primaryKey({ columns: [table.shopId, table.userId] }),
 ])
 
-export type StudioMemberRow = typeof studioMembers.$inferSelect
+export type ShopMemberRow = typeof shopMembers.$inferSelect
 
 export const roles = pgTable('roles', {
   code: text('code').$type<UserRole>().primaryKey(),
@@ -80,46 +81,46 @@ export const rolePermissions = pgTable('role_permissions', {
 
 export type RolePermissionRow = typeof rolePermissions.$inferSelect
 
-export const studioMemberRoles = pgTable('studio_member_roles', {
-  studioId: uuid('studio_id').notNull(),
+export const shopMemberRoles = pgTable('shop_member_roles', {
+  shopId: uuid('shop_id').notNull(),
   userId: uuid('user_id').notNull(),
   roleCode: text('role_code').$type<UserRole>().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
-  primaryKey({ columns: [table.studioId, table.userId, table.roleCode] }),
+  primaryKey({ columns: [table.shopId, table.userId, table.roleCode] }),
 ])
 
-export type StudioMemberRoleRow = typeof studioMemberRoles.$inferSelect
+export type ShopMemberRoleRow = typeof shopMemberRoles.$inferSelect
 
-export const studioMemberPermissions = pgTable('studio_member_permissions', {
-  studioId: uuid('studio_id').notNull(),
+export const shopMemberPermissions = pgTable('shop_member_permissions', {
+  shopId: uuid('shop_id').notNull(),
   userId: uuid('user_id').notNull(),
   permissionCode: text('permission_code').$type<PermissionCode>().notNull(),
   effect: text('effect').$type<'allow' | 'deny'>().notNull().default('allow'),
   grantedBy: uuid('granted_by'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
-  primaryKey({ columns: [table.studioId, table.userId, table.permissionCode] }),
+  primaryKey({ columns: [table.shopId, table.userId, table.permissionCode] }),
 ])
 
-export type StudioMemberPermissionRow = typeof studioMemberPermissions.$inferSelect
+export type ShopMemberPermissionRow = typeof shopMemberPermissions.$inferSelect
 
 export const employees = pgTable('employees', {
   id: uuid('id').primaryKey().defaultRandom(),
-  studioId: uuid('studio_id').notNull(),
+  shopId: uuid('shop_id').notNull(),
   name: text('name').notNull(),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
-  uniqueIndex('employees_studio_name_unique').on(table.studioId, sql`lower(${table.name})`),
+  uniqueIndex('employees_shop_name_unique').on(table.shopId, sql`lower(${table.name})`),
 ])
 
 export type EmployeeRow = typeof employees.$inferSelect
 
 export const employeeWorkBatches = pgTable('employee_work_batches', {
   id: uuid('id').primaryKey().defaultRandom(),
-  studioId: uuid('studio_id').notNull(),
+  shopId: uuid('shop_id').notNull(),
   employeeId: uuid('employee_id'),
   employeeName: text('employee_name').notNull(),
   workDate: date('work_date').notNull(),
@@ -131,9 +132,9 @@ export const employeeWorkBatches = pgTable('employee_work_batches', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
-  index('employee_work_batches_studio_employee_date_idx').on(table.studioId, table.employeeName, table.workDate),
-  index('employee_work_batches_studio_work_date_idx').on(table.studioId, table.workDate),
-  index('employee_work_batches_studio_created_at_idx').on(table.studioId, table.createdAt),
+  index('employee_work_batches_shop_employee_date_idx').on(table.shopId, table.employeeName, table.workDate),
+  index('employee_work_batches_shop_work_date_idx').on(table.shopId, table.workDate),
+  index('employee_work_batches_shop_created_at_idx').on(table.shopId, table.createdAt),
   index('employee_work_batches_uploaded_by_idx').on(table.uploadedBy),
 ])
 
@@ -142,7 +143,7 @@ export type EmployeeWorkBatchRow = typeof employeeWorkBatches.$inferSelect
 export const employeeWorkItems = pgTable('employee_work_items', {
   id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
   batchId: uuid('batch_id').notNull(),
-  studioId: uuid('studio_id').notNull(),
+  shopId: uuid('shop_id').notNull(),
   seq: text('seq'),
   sku: text('sku'),
   platform: text('platform'),
@@ -151,105 +152,59 @@ export const employeeWorkItems = pgTable('employee_work_items', {
   spec: text('spec'),
   price: numeric('price', { precision: 14, scale: 2 }),
 }, (table) => [
-  index('employee_work_items_studio_batch_id_idx').on(table.studioId, table.batchId, table.id),
-  index('employee_work_items_studio_sku_idx').on(table.studioId, table.sku),
+  index('employee_work_items_shop_batch_id_idx').on(table.shopId, table.batchId, table.id),
+  index('employee_work_items_shop_sku_idx').on(table.shopId, table.sku),
 ])
 
 export type EmployeeWorkItemRow = typeof employeeWorkItems.$inferSelect
 
-export const pricingBatches = pgTable('pricing_batches', {
+export const ledgerBatches = pgTable('ledger_batches', {
   id: uuid('id').primaryKey().defaultRandom(),
-  studioId: uuid('studio_id').notNull(),
+  shopId: uuid('shop_id').notNull(),
   fileName: text('file_name').notNull(),
   uploadedBy: uuid('uploaded_by').notNull(),
   totalRows: integer('total_rows').notNull().default(0),
-  archivedAt: timestamp('archived_at', { withTimezone: true, mode: 'date' }),
-  archivedBy: uuid('archived_by'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 }, (table) => [
-  index('pricing_batches_studio_created_at_idx').on(table.studioId, table.createdAt),
-  index('pricing_batches_uploaded_by_idx').on(table.uploadedBy),
+  index('ledger_batches_shop_created_at_idx').on(table.shopId, table.createdAt),
 ])
 
-export type PricingBatchRow = typeof pricingBatches.$inferSelect
+export type LedgerBatchRow = typeof ledgerBatches.$inferSelect
 
-export const pricingItems = pgTable('pricing_items', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  batchId: uuid('batch_id').notNull(),
-  studioId: uuid('studio_id').notNull(),
-  store: text('store'),
-  productName: text('product_name').notNull(),
-  supplierSku: text('supplier_sku'),
-  purchasePrice: numeric('purchase_price', { precision: 14, scale: 2 }),
-  weightKg: numeric('weight_kg', { precision: 10, scale: 3 }),
-  localSku: text('local_sku'),
-  nameAbbreviation: text('name_abbreviation'),
-  skuPrefix: text('sku_prefix'),
-  sellingPrice: numeric('selling_price', { precision: 14, scale: 2 }),
-  actualMarginRate: numeric('actual_margin_rate', { precision: 7, scale: 4 }),
-  breakevenSellingPrice: numeric('breakeven_selling_price', { precision: 14, scale: 2 }),
-  priceCheck: boolean('price_check').notNull().default(false),
-  weightCheck: boolean('weight_check').notNull().default(false),
-  breakevenProfit: numeric('breakeven_profit', { precision: 14, scale: 2 }),
-  breakevenMarginRate: numeric('breakeven_margin_rate', { precision: 7, scale: 4 }),
-  price1: numeric('price_1', { precision: 14, scale: 2 }),
-  shippingFee: numeric('shipping_fee', { precision: 14, scale: 2 }),
-  commissionRate: numeric('commission_rate', { precision: 7, scale: 4 }),
-  returnRate: numeric('return_rate', { precision: 7, scale: 4 }),
-  sourceUrl: text('source_url'),
-  createdBy: uuid('created_by').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
-}, (table) => [
-  index('pricing_items_studio_store_idx').on(table.studioId, table.store),
-  index('pricing_items_studio_batch_id_idx').on(table.studioId, table.batchId),
-  index('pricing_items_studio_supplier_sku_idx').on(table.studioId, table.supplierSku),
-  index('pricing_items_studio_created_at_idx').on(table.studioId, table.createdAt),
-])
-
-export type PricingItemRow = typeof pricingItems.$inferSelect
-
-export const importBatches = pgTable('import_batches', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  studioId: uuid('studio_id').notNull(),
-  fileName: text('file_name').notNull(),
-  status: text('status').$type<ImportBatchStatus>().notNull().default('pending'),
-  totalRows: integer('total_rows').notNull().default(0),
-  successRows: integer('success_rows').notNull().default(0),
-  failedRows: integer('failed_rows').notNull().default(0),
-  errorRows: jsonb('error_rows').$type<ImportRowError[]>().notNull().default(sql`'[]'::jsonb`),
-  createdBy: uuid('created_by').notNull(),
-  archivedAt: timestamp('archived_at', { withTimezone: true, mode: 'date' }),
-  archivedBy: uuid('archived_by'),
-  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
-  startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }),
-  finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'date' }),
-}, (table) => [
-  index('import_batches_studio_created_at_idx').on(table.studioId, table.createdAt),
-])
-
-export type ImportBatchRow = typeof importBatches.$inferSelect
-
-export const products = pgTable('products', {
+// 台账明细：25 个业务字段（含跟踪号）+ 归属店铺/批次；全部按 text 保存原始值（公式列不重算）
+export const ledgerItems = pgTable('ledger_items', {
   id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
   batchId: uuid('batch_id').notNull(),
-  studioId: uuid('studio_id').notNull(),
+  shopId: uuid('shop_id').notNull(),
   seq: text('seq'),
-  sku: text('sku'),
-  platform: text('platform'),
-  name: text('name').notNull(),
-  url: text('url'),
-  spec: text('spec'),
-  price: numeric('price', { precision: 14, scale: 2 }),
-  internalNote: text('internal_note'),
-  createdBy: uuid('created_by').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  month: text('month'),
+  orderDate: text('order_date'),
+  orderNo: text('order_no'),
+  trackingNo: text('tracking_no'),
+  salePrice: text('sale_price'),
+  quantity: text('quantity'),
+  unitPrice: text('unit_price'),
+  purchaseAmount: text('purchase_amount'),
+  purchaseDate: text('purchase_date'),
+  purchasePlatform: text('purchase_platform'),
+  purchaseOrderNo: text('purchase_order_no'),
+  grossProfit: text('gross_profit'),
+  channelName: text('channel_name'),
+  packageWeight: text('package_weight'),
+  freight: text('freight'),
+  commission: text('commission'),
+  netProfit: text('net_profit'),
+  ad22: text('ad22'),
+  ad22Net: text('ad22_net'),
+  ad30: text('ad30'),
+  ad30Net: text('ad30_net'),
+  compensation: text('compensation'),
+  remark: text('remark'),
 }, (table) => [
-  index('products_studio_created_at_idx').on(table.studioId, table.createdAt, table.id),
-  index('products_studio_sku_idx').on(table.studioId, table.sku),
-  index('products_studio_created_by_idx').on(table.studioId, table.createdBy),
+  index('ledger_items_shop_batch_id_idx').on(table.shopId, table.batchId, table.id),
+  index('ledger_items_shop_month_idx').on(table.shopId, table.month),
+  index('ledger_items_shop_order_no_idx').on(table.shopId, table.orderNo),
 ])
 
-export type ProductRow = typeof products.$inferSelect
+export type LedgerItemRow = typeof ledgerItems.$inferSelect

@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { z } from 'zod'
-import { AccountExistsError, authenticate, registerAdmin } from '../modules/auth/auth.service.js'
-import { type AuthEnv, requireAuth, requirePermission } from '../modules/auth/auth.middleware.js'
+import { AccountExistsError, authenticate, registerAdmin, switchCurrentShop } from '../modules/auth/auth.service.js'
+import { type AuthEnv, requireAuth } from '../modules/auth/auth.middleware.js'
 
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -15,20 +15,14 @@ const registerAdminSchema = z.object({
   displayName: z.string().trim().min(1).optional(),
 })
 
-async function readLoginBody(context: Context<AuthEnv>) {
-  try {
-    const body = await context.req.json()
-    const result = loginSchema.safeParse(body)
-    return result.success ? result.data : null
-  } catch {
-    return null
-  }
-}
+const switchShopSchema = z.object({
+  shopId: z.string().trim().min(1).nullable(),
+})
 
-async function readRegisterAdminBody(context: Context<AuthEnv>) {
+async function readBody<T>(context: Context<AuthEnv>, schema: z.ZodType<T>) {
   try {
     const body = await context.req.json()
-    const result = registerAdminSchema.safeParse(body)
+    const result = schema.safeParse(body)
     return result.success ? result.data : null
   } catch {
     return null
@@ -38,7 +32,7 @@ async function readRegisterAdminBody(context: Context<AuthEnv>) {
 export const loginRoutes = new Hono<AuthEnv>()
 
 loginRoutes.post('/login', async (context) => {
-  const body = await readLoginBody(context)
+  const body = await readBody(context, loginSchema)
   if (!body) {
     return context.json({ code: 'VALIDATION_ERROR', message: '邮箱或密码格式不正确。' }, 400)
   }
@@ -53,17 +47,33 @@ loginRoutes.post('/login', async (context) => {
 
 loginRoutes.get('/me', requireAuth, (context) => context.json(context.get('authContext')))
 
-loginRoutes.post('/register', requireAuth, requirePermission('member.manage'), async (context) => {
-  const body = await readRegisterAdminBody(context)
+// 切换当前店铺：管理员传 null 表示"全部"
+loginRoutes.post('/switch-shop', requireAuth, async (context) => {
+  const body = await readBody(context, switchShopSchema)
+  if (!body) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '请求参数不正确。' }, 400)
+  }
+
+  const result = await switchCurrentShop(context.get('authUser').id, body.shopId)
+  if (!result) {
+    return context.json({ code: 'FORBIDDEN', message: '无权访问该店铺。' }, 403)
+  }
+  return context.json(result)
+})
+
+// 注册新管理员（全局账号，由现有管理员操作）
+loginRoutes.post('/register', requireAuth, async (context) => {
+  const body = await readBody(context, registerAdminSchema)
   if (!body) {
     return context.json({ code: 'VALIDATION_ERROR', message: '请填写有效邮箱，密码至少需要 8 个字符。' }, 400)
   }
 
+  if (!context.get('authContext').roles.includes('admin')) {
+    return context.json({ code: 'FORBIDDEN', message: '只有管理员可以注册新管理员。' }, 403)
+  }
+
   try {
-    const user = await registerAdmin({
-      ...body,
-      studioId: context.get('authContext').currentStudio.id,
-    })
+    const user = await registerAdmin(body)
     return context.json({ user }, 201)
   } catch (error) {
     if (error instanceof AccountExistsError) {

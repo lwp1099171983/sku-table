@@ -56,7 +56,7 @@ export function LoginPage() {
         <Card bordered={false} className="login-card">
           <Typography.Text className="eyebrow">成员登录</Typography.Text>
           <Typography.Title level={2}>欢迎回来</Typography.Title>
-          <Typography.Paragraph type="secondary">使用负责人开通的团队账号继续工作。</Typography.Paragraph>
+          <Typography.Paragraph type="secondary">使用管理员开通的团队账号继续工作。</Typography.Paragraph>
           {error && <ErrorAlert message={error} className="login-alert" />}
           <Form
             layout="vertical"

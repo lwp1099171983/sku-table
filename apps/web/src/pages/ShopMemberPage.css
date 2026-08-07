@@ -1,0 +1,11 @@
+.shop-member-layout { display: grid; grid-template-columns: 260px 1fr; gap: 18px; align-items: start; }
+.shop-list-card .ant-list-item { cursor: pointer; padding: 12px 16px; border-radius: 6px; transition: background .15s; }
+.shop-list-card .ant-list-item:hover { background: var(--ant-color-fill-secondary, #f5f5f5); }
+.shop-list-card .shop-list-item.active { background: var(--ant-color-primary-bg, rgba(237,125,82,.1)); font-weight: 600; }
+.member-display-name { color: var(--ant-color-text-tertiary); font-size: 12px; }
+.member-role-select { width: 170px; }
+.permission-select { width: 110px; }
+
+@media (max-width: 900px) {
+  .shop-member-layout { grid-template-columns: 1fr; }
+}

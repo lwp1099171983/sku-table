@@ -2,11 +2,11 @@ import bcrypt from 'bcryptjs'
 import { sql } from 'drizzle-orm'
 import { ALL_ROLE_CODES, PERMISSION_CATALOG, ROLE_CATALOG, ROLE_PERMISSIONS } from '../modules/auth/rbac.js'
 import { db, closeDatabase } from './client.js'
-import { appUsers, permissions, rolePermissions, roles, studioMemberRoles, studioMembers, studios } from './schema.js'
+import { appUsers, permissions, rolePermissions, roles, shops } from './schema.js'
 
 const email = process.env.SEED_USER_EMAIL?.trim().toLowerCase()
 const password = process.env.SEED_USER_PASSWORD
-const studioName = process.env.SEED_STUDIO_NAME?.trim() || '默认工作室'
+const shopName = process.env.SEED_SHOP_NAME?.trim() || '默认店铺'
 
 async function seed() {
   if (!email || !password) {
@@ -38,40 +38,37 @@ async function seed() {
       }
     }
 
-    // 2. owner 账号（重复执行只更新密码和展示名）
-    const [owner] = await tx.insert(appUsers).values({
+    // 2. 管理员账号（重复执行只更新密码、展示名与全局管理员标记）
+    const [admin] = await tx.insert(appUsers).values({
       email,
       passwordHash,
-      displayName: '负责人',
+      displayName: '管理员',
+      isAdmin: true,
       isActive: true,
     }).onConflictDoUpdate({
       target: appUsers.email,
-      set: { passwordHash, displayName: '负责人', isActive: true, updatedAt: new Date() },
+      set: { passwordHash, displayName: '管理员', isAdmin: true, isActive: true, updatedAt: new Date() },
     }).returning({ id: appUsers.id, email: appUsers.email })
 
-    if (!owner) {
-      throw new Error('owner 账号创建失败。')
+    if (!admin) {
+      throw new Error('管理员账号创建失败。')
     }
 
-    // 3. 默认工作室（名称唯一，重复执行不会创建重复工作室）
-    const [studio] = await tx.insert(studios).values({ name: studioName }).onConflictDoNothing().returning({ id: studios.id })
-    const [existingStudio] = studio
+    // 3. 默认店铺（名称唯一，重复执行不会创建重复店铺）
+    const [shop] = await tx.insert(shops).values({ name: shopName }).onConflictDoNothing().returning({ id: shops.id })
+    const [existingShop] = shop
       ? []
-      : await tx.select({ id: studios.id }).from(studios)
-        .where(sql`lower(${studios.name}) = ${studioName.toLowerCase()}`).limit(1)
-    const studioId = studio?.id ?? existingStudio?.id
+      : await tx.select({ id: shops.id }).from(shops)
+        .where(sql`lower(${shops.name}) = ${shopName.toLowerCase()}`).limit(1)
+    const shopId = shop?.id ?? existingShop?.id
 
-    if (!studioId) {
-      throw new Error('默认工作室创建失败。')
+    if (!shopId) {
+      throw new Error('默认店铺创建失败。')
     }
-
-    // 4. 成员关系与 owner 角色（幂等）
-    await tx.insert(studioMembers).values({ studioId, userId: owner.id, isActive: true }).onConflictDoNothing()
-    await tx.insert(studioMemberRoles).values({ studioId, userId: owner.id, roleCode: 'owner' }).onConflictDoNothing()
 
     console.log(`RBAC 目录已准备：${ROLE_CATALOG.length} 个角色、${PERMISSION_CATALOG.length} 个权限。`)
-    console.log(`默认工作室：${studioName}（${studioId}）`)
-    console.log(`登录账号已准备：${owner.email}（owner，${owner.id}）`)
+    console.log(`默认店铺：${shopName}（${shopId}）`)
+    console.log(`登录账号已准备：${admin.email}（admin，${admin.id}）`)
   })
 }
 
