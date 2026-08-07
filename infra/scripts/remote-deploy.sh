@@ -51,7 +51,7 @@ POSTGRES_USER="$(read_env POSTGRES_USER)"
 POSTGRES_DB="$(read_env POSTGRES_DB)"
 SEED_USER_EMAIL="$(read_env SEED_USER_EMAIL)"
 SEED_USER_PASSWORD="$(read_env SEED_USER_PASSWORD)"
-SEED_STUDIO_NAME="$(read_env SEED_STUDIO_NAME)"
+SEED_SHOP_NAME="$(read_env SEED_SHOP_NAME)"
 APP_DOMAIN="$(read_env APP_DOMAIN)"
 
 echo "==== 远程部署 ${TAG} ===="
@@ -73,11 +73,11 @@ fi
 
 # 3. seed 初始化（幂等；未配置 SEED_USER_PASSWORD 时跳过，避免意外修改 owner 密码）
 if [[ -n "${SEED_USER_EMAIL}" && -n "${SEED_USER_PASSWORD}" ]]; then
-  echo "[seed] 初始化角色权限、默认工作室与 owner 账号"
+  echo "[seed] 初始化角色权限、默认店铺与 owner 账号"
   "${COMPOSE[@]}" run --rm --no-deps \
     -e "SEED_USER_EMAIL=${SEED_USER_EMAIL}" \
     -e "SEED_USER_PASSWORD=${SEED_USER_PASSWORD}" \
-    -e "SEED_STUDIO_NAME=${SEED_STUDIO_NAME:-默认工作室}" \
+    -e "SEED_SHOP_NAME=${SEED_SHOP_NAME:-默认店铺}" \
     api node dist/db/seed.js
 else
   echo "[seed] state/.env 未配置 SEED_USER_PASSWORD，跳过 seed（owner 密码不会被修改）。"

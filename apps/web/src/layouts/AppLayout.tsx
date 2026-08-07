@@ -1,6 +1,6 @@
 import { IdcardOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ScheduleOutlined, ShopOutlined, SunOutlined, TableOutlined, UserAddOutlined, UserOutlined } from '@ant-design/icons'
 import { App as AntdApp, Avatar, Button, Dropdown, Form, Input, Layout, Menu, Modal, Select, Space, Tooltip, Typography } from 'antd'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { APP_LABELS } from '../constants/app'
 import { useAuth } from './AuthContext'
@@ -12,7 +12,7 @@ const { Header, Sider, Content } = Layout
 const ALL_SHOPS_VALUE = '__all__'
 
 export function AppLayout() {
-  const { user, isAdmin, canViewLedger, shops, currentShop, switchShop, logout } = useAuth()
+  const { user, isAdmin, canViewLedger, shops, currentShop, switchShop, logout, refreshShops } = useAuth()
   const { mode, toggleTheme } = useTheme()
   const { message } = AntdApp.useApp()
   const navigate = useNavigate()
@@ -20,6 +20,17 @@ export function AppLayout() {
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   const [changePasswordForm] = Form.useForm<{ oldPassword: string; newPassword: string; confirmPassword: string }>()
   const [isSaving, setIsSaving] = useState(false)
+  // 跳过首次挂载（AuthProvider 加载时已拉取过上下文）
+  const isFirstRender = useRef(true)
+
+  // 切换页面时静默刷新店铺列表（同步台账导入自动创建的店铺、店铺改名/删除等变化），保留当前店铺选择
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    void refreshShops()
+  }, [location.pathname, refreshShops])
 
   const menuItems = useMemo(() => [
     { key: '/', icon: <ScheduleOutlined />, label: APP_LABELS.employeeWork },
