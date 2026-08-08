@@ -42,12 +42,13 @@ ledgerRoutes.get('/', requireAuth, requirePermission('ledger.read'), async (cont
   const scope = resolveShopScope(context, result.data.shopId)
   if (scope instanceof Response) return scope
 
+  const canViewStats = context.get('authContext').permissions.includes('ledger.stats.read')
   return context.json(await listLedgerItems(scope.shopIds, {
     page: result.data.page,
     pageSize: result.data.pageSize,
     month: result.data.month,
     keyword: result.data.keyword,
-  }))
+  }, canViewStats))
 })
 
 ledgerRoutes.get('/batches', requireAuth, requirePermission('ledger.read'), async (context) => {

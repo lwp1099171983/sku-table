@@ -36,7 +36,7 @@ function renderText(value: string | null) {
 }
 
 export function LedgerPage() {
-  const { canImportLedger, canDeleteLedger, currentShop } = useAuth()
+  const { canImportLedger, canDeleteLedger, canViewLedgerStats, currentShop } = useAuth()
   const { message } = AntdApp.useApp()
   const [file, setFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -71,7 +71,7 @@ export function LedgerPage() {
         keyword: debouncedKeyword.trim() || undefined,
       })
       setItems(result.items)
-      setStats(result.stats)
+      setStats(result.stats ?? EMPTY_STATS)
       setTotal(result.total)
     } catch {
       message.error('台账数据加载失败，请稍后重试。')
@@ -244,7 +244,7 @@ export function LedgerPage() {
         <div>
           <Typography.Text className="eyebrow">ORDER LEDGER</Typography.Text>
           <Typography.Title level={1}>{APP_LABELS.ledger}</Typography.Title>
-          <Typography.Paragraph type="secondary">订单统计表，Excel 导入保存原始值，顶部统计随筛选结果实时汇总。</Typography.Paragraph>
+          <Typography.Paragraph type="secondary">订单统计表，Excel 导入保存原始值{canViewLedgerStats ? '，顶部统计随筛选结果实时汇总' : ''}。</Typography.Paragraph>
         </div>
         <Space className="page-actions">
           {canImportLedger && <Button type="primary" icon={<UploadOutlined />} onClick={() => setIsImportModalOpen(true)}>导入台账</Button>}
@@ -313,18 +313,18 @@ export function LedgerPage() {
         />
       </Modal>
 
-      <div className="stats-grid">
+      {canViewLedgerStats && <div className="stats-grid">
         {statCards.map((card) => (
           <div className={`stat-card${card.highlight ? ' stat-card-highlight' : ''}`} key={card.label}>
             <Typography.Text type="secondary" className="stat-label">{card.label}</Typography.Text>
             <Typography.Title level={4} className="stat-value">¥ {formatAmount(card.value)}</Typography.Title>
           </div>
         ))}
-      </div>
+      </div>}
 
       <div className="records-section">
         <div className="section-heading">
-          <div><Typography.Title level={4}>台账明细</Typography.Title><Typography.Text type="secondary">共 {total.toLocaleString()} 条记录（统计随筛选变化）</Typography.Text></div>
+          <div><Typography.Title level={4}>台账明细</Typography.Title><Typography.Text type="secondary">共 {total.toLocaleString()} 条记录{canViewLedgerStats ? '（统计随筛选变化）' : ''}</Typography.Text></div>
           {canDeleteLedger && selectedRowKeys.length > 0 && (
             <Button danger icon={<DeleteOutlined />} loading={isDeleting} onClick={() => confirmDelete(selectedRowKeys.map(Number), `确认删除选中的 ${selectedRowKeys.length} 条台账记录？`, '删除后不可恢复，同时会扣减对应导入批次的记录数，顶部统计会同步变化。')}>
               批量删除（{selectedRowKeys.length}）

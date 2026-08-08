@@ -30,13 +30,14 @@
 - `0002_drop_pricing_tables.sql`：清理已下线的定价表；
 - `0003_shop_ledger_refactor.sql`：工作室→店铺重构（改名、删商品表、旧 owner 升级为管理员、加台账表），空库执行为条件空操作；
 - `0004_ledger_text_and_tracking.sql`：台账改 text 保存原始值并补充跟踪号；
+- `0007_ledger_stats_permission.sql`：增加台账统计查看权限，仅预置给管理员；
 - 生产环境执行前必须保留 `pg_dump` 备份，不得直接覆盖已有数据。
 
 ## Seed
 
 执行 `pnpm db:seed` 会幂等地初始化：
 
-- 角色与权限目录（`admin` / `leader` / `customer` 与 11 个权限码）；
+- 角色与权限目录（`admin` / `leader` / `customer` 与 12 个权限码）；
 - 管理员登录账号（`SEED_USER_EMAIL` / `SEED_USER_PASSWORD`，`is_admin = true`）；
 - 默认店铺（`SEED_SHOP_NAME`，默认"默认店铺"）。
 

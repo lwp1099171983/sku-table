@@ -155,7 +155,8 @@ export interface LedgerListQueryDto {
 }
 
 export interface LedgerListResponseDto extends PageResult<LedgerItem> {
-  stats: LedgerStats
+  // 统计数据单独受 ledger.stats.read 权限控制，无权限时不返回
+  stats?: LedgerStats
 }
 
 export interface LedgerImportResponseDto {

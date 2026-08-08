@@ -12,6 +12,7 @@ export type PermissionCode =
   | 'employee_work.delete'
   | 'employee_work.rollback'
   | 'ledger.read'
+  | 'ledger.stats.read'
   | 'ledger.import'
   | 'ledger.delete'
 

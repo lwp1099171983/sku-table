@@ -217,6 +217,7 @@ function computeStats(input: {
 export async function listLedgerItems(
   shopIds: string[] | null,
   query: Required<Pick<LedgerListQueryDto, 'page' | 'pageSize'>> & Omit<LedgerListQueryDto, 'page' | 'pageSize'>,
+  includeStats = true,
 ) {
   const filters: SQL[] = []
   if (shopIds) filters.push(inArray(ledgerItems.shopId, shopIds))
@@ -234,28 +235,32 @@ export async function listLedgerItems(
     .from(ledgerItems)
     .where(where)
 
-  // 统计：读取全部筛选行的数值列，在应用层求和（不受分页影响）
-  const sumRows = await db.select({
-    purchaseAmount: ledgerItems.purchaseAmount,
-    revenue: ledgerItems.salePrice,
-    freight: ledgerItems.freight,
-    commission: ledgerItems.commission,
-  })
-    .from(ledgerItems)
-    .where(where)
-  const sums = sumRows.reduce((acc, row) => {
-    const toNumber = (value: string | null) => {
-      if (value === null) return 0
-      const normalized = value.replace(/[￥¥,，\s]/g, '')
-      const number = Number(normalized)
-      return Number.isFinite(number) ? number : 0
-    }
-    acc.purchaseAmount += toNumber(row.purchaseAmount)
-    acc.revenue += toNumber(row.revenue)
-    acc.freight += toNumber(row.freight)
-    acc.commission += toNumber(row.commission)
-    return acc
-  }, { purchaseAmount: 0, revenue: 0, freight: 0, commission: 0 })
+  let stats: LedgerStats | undefined
+  if (includeStats) {
+    // 统计：读取全部筛选行的数值列，在应用层求和（不受分页影响）
+    const sumRows = await db.select({
+      purchaseAmount: ledgerItems.purchaseAmount,
+      revenue: ledgerItems.salePrice,
+      freight: ledgerItems.freight,
+      commission: ledgerItems.commission,
+    })
+      .from(ledgerItems)
+      .where(where)
+    const sums = sumRows.reduce((acc, row) => {
+      const toNumber = (value: string | null) => {
+        if (value === null) return 0
+        const normalized = value.replace(/[￥¥,，\s]/g, '')
+        const number = Number(normalized)
+        return Number.isFinite(number) ? number : 0
+      }
+      acc.purchaseAmount += toNumber(row.purchaseAmount)
+      acc.revenue += toNumber(row.revenue)
+      acc.freight += toNumber(row.freight)
+      acc.commission += toNumber(row.commission)
+      return acc
+    }, { purchaseAmount: 0, revenue: 0, freight: 0, commission: 0 })
+    stats = computeStats(sums)
+  }
 
   const rows = await db.select({
     id: ledgerItems.id,
@@ -299,7 +304,7 @@ export async function listLedgerItems(
     page: query.page,
     pageSize: query.pageSize,
     total: Number(total),
-    stats: computeStats(sums),
+    stats,
   }
 }
 

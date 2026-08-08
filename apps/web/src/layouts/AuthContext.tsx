@@ -20,6 +20,7 @@ interface AuthContextValue {
   canImportLedger: boolean
   canDeleteLedger: boolean
   canViewLedger: boolean
+  canViewLedgerStats: boolean
   isAdmin: boolean
 }
 
@@ -89,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     canImportLedger: permissions.includes('ledger.import'),
     canDeleteLedger: permissions.includes('ledger.delete'),
     canViewLedger: permissions.includes('ledger.read'),
+    canViewLedgerStats: permissions.includes('ledger.stats.read'),
     isAdmin: roles.includes('admin'),
     async login(email, password) {
       const response = await authService.login({ email, password })
