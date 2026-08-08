@@ -3,7 +3,6 @@ import type { AdminUserDto, AdminUserMembershipDto, PermissionCode, Shop, UserRo
 import { db } from '../../db/client.js'
 import {
   appUsers,
-  permissions,
   rolePermissions,
   shopMemberPermissions,
   shopMemberRoles,
@@ -137,12 +136,6 @@ export async function getEffectivePermissions(shopId: string, userId: string): P
   }
 
   return [...allows]
-}
-
-// 全部权限码（管理员使用）
-export async function listAllPermissionCodes(): Promise<PermissionCode[]> {
-  const rows = await db.select({ code: permissions.code }).from(permissions)
-  return rows.map((row) => row.code)
 }
 
 // 全部非管理员账号及其店铺归属（账号管理页视图）

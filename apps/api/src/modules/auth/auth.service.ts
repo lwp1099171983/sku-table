@@ -10,11 +10,11 @@ import {
   findUserById,
   getEffectivePermissions,
   getMemberRoles,
-  listAllPermissionCodes,
   listAllShops,
   listUserShops,
   updateUserPassword,
 } from './auth.repository.js'
+import { PERMISSION_CATALOG } from './rbac.js'
 import { createAccessToken } from './token.js'
 
 export type PublicAuthUser = AuthContextDto['user']
@@ -49,7 +49,7 @@ async function buildAdminContext(user: { id: string; email: string; displayName:
     shops,
     currentShop,
     roles: ['admin'],
-    permissions: await listAllPermissionCodes(),
+    permissions: PERMISSION_CATALOG.map((permission) => permission.code),
   }
 }
 
