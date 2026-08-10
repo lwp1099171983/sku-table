@@ -7,6 +7,7 @@ import { hashEmployeeWorkItems } from '../imports/idempotency.js'
 import type { ParsedEmployeeWorkItem } from './parser.js'
 
 const INSERT_CHUNK_SIZE = 1_000
+const SKU_QUERY_CHUNK_SIZE = 10_000
 
 async function getShopName(shopId: string) {
   const [row] = await db.select({ name: shops.name }).from(shops).where(eq(shops.id, shopId)).limit(1)
@@ -46,7 +47,10 @@ export async function createEmployeeWorkImport(input: {
     items: input.items,
   })
 
-  const { batch, reused } = await db.transaction(async (tx) => {
+  const { batch, reused, importedRows, skippedRows } = await db.transaction(async (tx) => {
+    // 锁定店铺行，串行化同一店铺的导入，避免并发导入同时通过货号检查
+    await tx.execute(sql`select id from ${shops} where id = ${input.shopId} for update`)
+
     // 幂等命中：同店铺+同文件指纹的批次已存在时直接复用，不再写入
     const [existingBatch] = await tx.select()
       .from(employeeWorkBatches)
@@ -56,8 +60,40 @@ export async function createEmployeeWorkImport(input: {
       ))
       .limit(1)
     if (existingBatch) {
-      return { batch: existingBatch, reused: true }
+      return {
+        batch: existingBatch,
+        reused: true,
+        importedRows: 0,
+        skippedRows: input.items.length,
+      }
     }
+
+    // 文件内按货号去重，保留首次出现的记录；货号已经在解析阶段保证非空
+    const uniqueItemsBySku = new Map<string, ParsedEmployeeWorkItem>()
+    for (const item of input.items) {
+      const skuKey = item.sku.toLowerCase()
+      if (uniqueItemsBySku.has(skuKey)) continue
+      uniqueItemsBySku.set(skuKey, item)
+    }
+
+    const uniqueItems = [...uniqueItemsBySku.values()]
+    const existingSkuKeys = new Set<string>()
+    const uniqueSkuKeys = [...uniqueItemsBySku.keys()]
+    for (let start = 0; start < uniqueSkuKeys.length; start += SKU_QUERY_CHUNK_SIZE) {
+      const chunk = uniqueSkuKeys.slice(start, start + SKU_QUERY_CHUNK_SIZE)
+      const rows = await tx.select({ sku: employeeWorkItems.sku })
+        .from(employeeWorkItems)
+        .where(and(
+          eq(employeeWorkItems.shopId, input.shopId),
+          inArray(sql`lower(${employeeWorkItems.sku})`, chunk),
+        ))
+      for (const row of rows) {
+        if (row.sku) existingSkuKeys.add(row.sku.toLowerCase())
+      }
+    }
+
+    const itemsToInsert = uniqueItems.filter((item) => !existingSkuKeys.has(item.sku.toLowerCase()))
+    const skippedRows = input.items.length - itemsToInsert.length
 
     // 按 (shopId, lower(name)) 幂等 upsert 员工档案，拿到 employeeId
     const [createdEmployee] = await tx.insert(employees)
@@ -90,7 +126,7 @@ export async function createEmployeeWorkImport(input: {
       fileName: input.fileName,
       uploadedBy: input.uploadedBy,
       idempotencyKey,
-      totalRows: input.items.length,
+      totalRows: itemsToInsert.length,
     }).onConflictDoNothing().returning()
 
     let batch = createdBatch
@@ -108,8 +144,8 @@ export async function createEmployeeWorkImport(input: {
       batch = existing
     }
 
-    for (let start = 0; start < input.items.length; start += INSERT_CHUNK_SIZE) {
-      const chunk = input.items.slice(start, start + INSERT_CHUNK_SIZE)
+    for (let start = 0; start < itemsToInsert.length; start += INSERT_CHUNK_SIZE) {
+      const chunk = itemsToInsert.slice(start, start + INSERT_CHUNK_SIZE)
       await tx.insert(employeeWorkItems).values(chunk.map((item) => ({
         batchId: batch.id,
         shopId: input.shopId,
@@ -123,10 +159,20 @@ export async function createEmployeeWorkImport(input: {
       })))
     }
 
-    return { batch, reused: false }
+    return {
+      batch,
+      reused: false,
+      importedRows: itemsToInsert.length,
+      skippedRows,
+    }
   })
 
-  return { batch: toPublicBatch(batch, await getShopName(batch.shopId)), reused }
+  return {
+    batch: toPublicBatch(batch, await getShopName(batch.shopId)),
+    importedRows,
+    skippedRows,
+    reused,
+  }
 }
 
 // 列表：shopIds 为 null 表示不限店铺（管理员"全部"视图）

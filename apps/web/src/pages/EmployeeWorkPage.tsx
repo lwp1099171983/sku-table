@@ -152,7 +152,9 @@ export function EmployeeWorkPage() {
       setLastBatch(result.batch)
       setEmployeeOptions((current) => current.includes(employeeName.trim()) ? current : [...current, employeeName.trim()].sort())
       if (result.reused) {
-        message.info(`该文件此前已导入过（${result.importedRows.toLocaleString()} 行），未重复入库。`)
+        message.info('该文件此前已处理过，本次未新增数据。')
+      } else if (result.skippedRows > 0) {
+        message.warning(`已导入 ${result.importedRows.toLocaleString()} 行，跳过 ${result.skippedRows.toLocaleString()} 行重复货号。`)
       } else {
         message.success(`已导入 ${result.importedRows.toLocaleString()} 行员工工作数据。`)
       }
@@ -317,7 +319,7 @@ export function EmployeeWorkPage() {
         onCancel={closeImportModal}
       >
         <Typography.Paragraph type="secondary">上传的 Excel 只需要包含 7 个商品字段，员工姓名和工作日期在这里填写，数据归属当前店铺{currentShop ? `（${currentShop.name}）` : ''}。</Typography.Paragraph>
-        <Alert type="info" showIcon message="支持 .xlsx / .xls；表头为：序号、货号、采集平台、采集商品名称、采集商品链接、采集规格、采集价格(CNY)；单批最多 5 万行。" />
+        <Alert type="info" showIcon message="支持 .xlsx / .xls；表头为：序号、货号、采集平台、采集商品名称、采集商品链接、采集规格、采集价格(CNY)；同一店铺的重复货号会自动跳过；单批最多 5 万行。" />
         <div className="work-import-grid">
           <label className="field-label">员工姓名<AutoComplete
             value={employeeName}

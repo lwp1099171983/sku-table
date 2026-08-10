@@ -141,7 +141,9 @@ export type EmployeeWorkListResponseDto = PageResult<EmployeeWorkItem>
 
 export interface EmployeeWorkImportResponseDto {
   batch: EmployeeWorkBatch
+  // 本次实际新增和因重复而跳过的 Excel 行数
   importedRows: number
+  skippedRows: number
   // 幂等命中：该文件（内容指纹）此前已导入过，未重复入库
   reused: boolean
 }

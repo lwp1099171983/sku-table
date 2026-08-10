@@ -16,7 +16,7 @@ const headerAliases: Record<string, keyof ParsedEmployeeWorkItem> = {
 
 export interface ParsedEmployeeWorkItem {
   seq: string | null
-  sku: string | null
+  sku: string
   platform: string | null
   name: string
   url: string | null
@@ -83,10 +83,14 @@ function parseWorkbook(workbook: XLSX.WorkBook): ParsedEmployeeWorkItem[] {
     if (!name) {
       throw new Error(`第 ${rowNumber} 行缺少采集商品名称。`)
     }
+    const sku = normalizeText(row[headerMap.get('sku') ?? -1])
+    if (!sku) {
+      throw new Error(`第 ${rowNumber} 行缺少货号。`)
+    }
 
     items.push({
       seq: normalizeText(row[headerMap.get('seq') ?? -1]),
-      sku: normalizeText(row[headerMap.get('sku') ?? -1]),
+      sku,
       platform: normalizeText(row[headerMap.get('platform') ?? -1]),
       name,
       url: normalizeText(row[headerMap.get('url') ?? -1]),
