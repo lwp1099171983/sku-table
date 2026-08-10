@@ -18,6 +18,7 @@ interface AuthContextValue {
   canImportEmployeeWork: boolean
   canDeleteEmployeeWork: boolean
   canImportLedger: boolean
+  canEditLedger: boolean
   canDeleteLedger: boolean
   canViewLedger: boolean
   canViewLedgerStats: boolean
@@ -88,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     canImportEmployeeWork: permissions.includes('employee_work.import'),
     canDeleteEmployeeWork: permissions.includes('employee_work.delete'),
     canImportLedger: permissions.includes('ledger.import'),
+    canEditLedger: permissions.includes('ledger.edit'),
     canDeleteLedger: permissions.includes('ledger.delete'),
     canViewLedger: permissions.includes('ledger.read'),
     canViewLedgerStats: permissions.includes('ledger.stats.read'),

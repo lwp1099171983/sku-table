@@ -86,12 +86,24 @@ fi
 # 4. 最终健康检查
 HTTP_PORT="$(read_env HTTP_PORT)"
 HTTP_PORT="${HTTP_PORT:-80}"
-if [[ -n "${APP_DOMAIN}" ]]; then
+HTTPS_PORT="$(read_env HTTPS_PORT)"
+HTTPS_PORT="${HTTPS_PORT:-443}"
+LETSENCRYPT_DIR="$(read_env LETSENCRYPT_DIR)"
+LETSENCRYPT_DIR="${LETSENCRYPT_DIR:-/etc/letsencrypt}"
+if [[ -n "${APP_DOMAIN}" && -s "${LETSENCRYPT_DIR}/live/${APP_DOMAIN}/fullchain.pem" ]]; then
+  HTTPS_ORIGIN="https://${APP_DOMAIN}"
+  if [[ "${HTTPS_PORT}" != "443" ]]; then
+    HTTPS_ORIGIN="${HTTPS_ORIGIN}:${HTTPS_PORT}"
+  fi
+  CURL_RESOLVE="${APP_DOMAIN}:${HTTPS_PORT}:127.0.0.1"
+  PAGE_STATUS="$(curl -s -o /dev/null -w '%{http_code}' --resolve "${CURL_RESOLVE}" "${HTTPS_ORIGIN}/" || echo 000)"
+  API_HEALTH="$(curl -s --resolve "${CURL_RESOLVE}" "${HTTPS_ORIGIN}/api/health" || echo 'unreachable')"
+elif [[ -n "${APP_DOMAIN}" ]]; then
   PAGE_STATUS="$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${APP_DOMAIN}" "http://127.0.0.1:${HTTP_PORT}/" || echo 000)"
   API_HEALTH="$(curl -s -H "Host: ${APP_DOMAIN}" "http://127.0.0.1:${HTTP_PORT}/api/health" || echo 'unreachable')"
 else
   PAGE_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${HTTP_PORT}/" || echo 000)"
   API_HEALTH="$(curl -s "http://127.0.0.1:${HTTP_PORT}/api/health" || echo 'unreachable')"
 fi
-echo "[verify] 页面 HTTP ${PAGE_STATUS}，API 健康检查：${API_HEALTH}"
+echo "[verify] 页面状态 ${PAGE_STATUS}，API 健康检查：${API_HEALTH}"
 echo "==== 部署完成：${TAG} ===="

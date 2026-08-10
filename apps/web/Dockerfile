@@ -12,6 +12,8 @@ RUN pnpm --filter @sku-table/web build
 FROM nginx:1.27-alpine
 RUN rm -f /etc/nginx/conf.d/default.conf
 COPY infra/nginx/app-vhost.conf.template /etc/nginx/app-vhost.conf.template
+COPY infra/nginx/app-vhost-https.conf.template /etc/nginx/app-vhost-https.conf.template
 COPY infra/nginx/app-reject.conf /etc/nginx/app-reject.conf
+COPY infra/nginx/app-reject-https.conf.template /etc/nginx/app-reject-https.conf.template
 COPY infra/nginx/05-app-vhost.sh /docker-entrypoint.d/05-app-vhost.sh
 COPY --from=build /workspace/apps/web/dist /usr/share/nginx/html

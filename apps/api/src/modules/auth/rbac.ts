@@ -13,6 +13,7 @@ export const PERMISSION_CATALOG: ReadonlyArray<{ code: PermissionCode; name: str
   { code: 'ledger.read', name: '台账查看', description: '查看订单台账。' },
   { code: 'ledger.stats.read', name: '台账统计查看', description: '查看订单台账统计数据。' },
   { code: 'ledger.import', name: '台账导入', description: '导入订单台账 Excel。' },
+  { code: 'ledger.edit', name: '台账编辑', description: '修改台账重量并重新计算相关数据。' },
   { code: 'ledger.delete', name: '台账删除', description: '删除台账数据。' },
 ]
 
@@ -39,9 +40,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly PermissionCode[]> = {
 
 export const ALL_ROLE_CODES: readonly UserRole[] = ['admin', 'leader', 'customer']
 
-// 允许管理员通过成员管理单独开通/关闭的用户级权限（删除类）
+// 允许管理员通过成员管理单独开通/关闭的用户级权限
 export const MEMBER_ASSIGNABLE_PERMISSIONS: readonly PermissionCode[] = [
   'employee_work.delete',
+  'ledger.edit',
   'ledger.delete',
 ]
 

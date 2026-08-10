@@ -178,7 +178,7 @@ export const ledgerBatches = pgTable('ledger_batches', {
 
 export type LedgerBatchRow = typeof ledgerBatches.$inferSelect
 
-// 台账明细：25 个业务字段（含跟踪号）+ 归属店铺/批次；全部按 text 保存原始值（公式列不重算）
+// 台账明细：25 个业务字段（含 SKU）+ 归属店铺/批次；在线修改重量时重算公式列
 export const ledgerItems = pgTable('ledger_items', {
   id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
   batchId: uuid('batch_id').notNull(),
@@ -187,7 +187,7 @@ export const ledgerItems = pgTable('ledger_items', {
   month: text('month'),
   orderDate: text('order_date'),
   orderNo: text('order_no'),
-  trackingNo: text('tracking_no'),
+  sku: text('sku'),
   salePrice: text('sale_price'),
   quantity: text('quantity'),
   unitPrice: text('unit_price'),
@@ -210,7 +210,7 @@ export const ledgerItems = pgTable('ledger_items', {
 }, (table) => [
   index('ledger_items_shop_batch_id_idx').on(table.shopId, table.batchId, table.id),
   index('ledger_items_shop_month_idx').on(table.shopId, table.month),
-  index('ledger_items_shop_order_no_idx').on(table.shopId, table.orderNo),
+  uniqueIndex('ledger_items_order_no_unique').on(table.orderNo).where(sql`${table.orderNo} is not null`),
 ])
 
 export type LedgerItemRow = typeof ledgerItems.$inferSelect

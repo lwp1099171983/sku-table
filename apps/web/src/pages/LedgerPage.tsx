@@ -1,5 +1,5 @@
-import { DeleteOutlined, DownloadOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
-import { Alert, App as AntdApp, Button, Empty, Input, Modal, Pagination, Popconfirm, Progress, Space, Table, Typography, Upload } from 'antd'
+import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
+import { Alert, App as AntdApp, Button, Empty, Input, InputNumber, Modal, Pagination, Popconfirm, Progress, Space, Table, Tooltip, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -35,8 +35,83 @@ function renderText(value: string | null) {
   return value || '—'
 }
 
+function renderAmount(value: string | null) {
+  if (!value) return '—'
+  const normalized = value.replace(/[￥¥,，\s]/g, '')
+  if (!normalized) return value
+  const amount = Number(normalized)
+  return Number.isFinite(amount) ? formatAmount(amount) : value
+}
+
+function EditableWeightCell({ record, onSaved }: { record: LedgerItem; onSaved: (item: LedgerItem) => Promise<void> }) {
+  const { message } = AntdApp.useApp()
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [value, setValue] = useState<number | null>(null)
+
+  function startEditing() {
+    const current = Number(record.packageWeight)
+    setValue(Number.isFinite(current) ? current : null)
+    setIsEditing(true)
+  }
+
+  function cancelEditing() {
+    setIsEditing(false)
+    setValue(null)
+  }
+
+  async function saveWeight() {
+    if (value === null || !Number.isFinite(value) || value < 0) {
+      message.error('请输入大于等于 0 的包裹重量。')
+      return
+    }
+    setIsSaving(true)
+    try {
+      const result = await ledgerService.updateWeight(record.id, value)
+      await onSaved(result.item)
+      setIsEditing(false)
+      message.success('重量及相关数据已重新计算。')
+    } catch (error) {
+      const apiMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message
+      message.error(apiMessage || '重量保存失败，请稍后重试。')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <div className="ledger-weight-editor">
+        <InputNumber
+          aria-label="包裹重量（克）"
+          min={0}
+          precision={3}
+          value={value}
+          onChange={setValue}
+          onKeyDown={(event) => { if (event.key === 'Enter') void saveWeight() }}
+        />
+        <Tooltip title="保存">
+          <Button type="text" size="small" icon={<CheckOutlined />} loading={isSaving} onClick={() => void saveWeight()} aria-label="保存重量" />
+        </Tooltip>
+        <Tooltip title="取消">
+          <Button type="text" size="small" icon={<CloseOutlined />} disabled={isSaving} onClick={cancelEditing} aria-label="取消编辑重量" />
+        </Tooltip>
+      </div>
+    )
+  }
+
+  return (
+    <div className="ledger-weight-display">
+      <span>{renderText(record.packageWeight)}</span>
+      <Tooltip title="编辑重量">
+        <Button type="text" size="small" icon={<EditOutlined />} onClick={startEditing} aria-label="编辑包裹重量" />
+      </Tooltip>
+    </div>
+  )
+}
+
 export function LedgerPage() {
-  const { canImportLedger, canDeleteLedger, canViewLedgerStats, currentShop } = useAuth()
+  const { canImportLedger, canEditLedger, canDeleteLedger, canViewLedgerStats, currentShop } = useAuth()
   const { message } = AntdApp.useApp()
   const [file, setFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -128,7 +203,9 @@ export function LedgerPage() {
         onProgress: setUploadProgress,
       })
       if (result.reused) {
-        message.info(`该文件此前已导入过（${result.importedRows.toLocaleString()} 行），未重复入库。`)
+        message.info(`该文件此前已处理过，本次跳过 ${result.skippedRows.toLocaleString()} 行。`)
+      } else if (result.skippedRows > 0) {
+        message.warning(`已导入 ${result.importedRows.toLocaleString()} 行，跳过 ${result.skippedRows.toLocaleString()} 行重复订单号。`)
       } else {
         message.success(`已导入 ${result.importedRows.toLocaleString()} 行台账数据（${result.batches.length} 个店铺）。`)
       }
@@ -156,6 +233,11 @@ export function LedgerPage() {
     { label: '纯利润', value: stats.pureProfit, highlight: true },
   ]
 
+  const handleWeightSaved = useCallback(async (updatedItem: LedgerItem) => {
+    setItems((current) => current.map((item) => item.id === updatedItem.id ? updatedItem : item))
+    await loadItems()
+  }, [loadItems])
+
   const columns: ColumnsType<LedgerItem> = useMemo(() => {
     const base: ColumnsType<LedgerItem> = []
     if (currentShop === null) {
@@ -167,25 +249,34 @@ export function LedgerPage() {
       { title: '月份', dataIndex: 'month', key: 'month', width: 70, render: renderText },
       { title: '订单日期', dataIndex: 'orderDate', key: 'orderDate', width: 160, render: renderText },
       { title: '订单号', dataIndex: 'orderNo', key: 'orderNo', width: 170, render: renderText },
-      { title: '跟踪号', dataIndex: 'trackingNo', key: 'trackingNo', width: 170, render: renderText },
-      { title: '售价', dataIndex: 'salePrice', key: 'salePrice', width: 90, align: 'right' as const, render: renderText },
+      { title: 'SKU', dataIndex: 'sku', key: 'sku', width: 170, render: renderText },
+      { title: '售价', dataIndex: 'salePrice', key: 'salePrice', width: 90, align: 'right' as const, render: renderAmount },
       { title: '数量', dataIndex: 'quantity', key: 'quantity', width: 70, align: 'right' as const, render: renderText },
-      { title: '单价', dataIndex: 'unitPrice', key: 'unitPrice', width: 90, align: 'right' as const, render: renderText },
-      { title: '采购金额', dataIndex: 'purchaseAmount', key: 'purchaseAmount', width: 100, align: 'right' as const, render: renderText },
+      { title: '单价', dataIndex: 'unitPrice', key: 'unitPrice', width: 90, align: 'right' as const, render: renderAmount },
+      { title: '采购金额', dataIndex: 'purchaseAmount', key: 'purchaseAmount', width: 100, align: 'right' as const, render: renderAmount },
       { title: '采购日期', dataIndex: 'purchaseDate', key: 'purchaseDate', width: 110, render: renderText },
       { title: '采购平台', dataIndex: 'purchasePlatform', key: 'purchasePlatform', width: 110, render: renderText },
       { title: '采购订单号', dataIndex: 'purchaseOrderNo', key: 'purchaseOrderNo', width: 170, render: renderText },
-      { title: '毛利', dataIndex: 'grossProfit', key: 'grossProfit', width: 90, align: 'right' as const, render: renderText },
+      { title: '毛利', dataIndex: 'grossProfit', key: 'grossProfit', width: 90, align: 'right' as const, render: renderAmount },
       { title: '渠道名称', dataIndex: 'channelName', key: 'channelName', width: 200, ellipsis: true, render: renderText },
-      { title: '包裹重量', dataIndex: 'packageWeight', key: 'packageWeight', width: 90, align: 'right' as const, render: renderText },
-      { title: '运费', dataIndex: 'freight', key: 'freight', width: 90, align: 'right' as const, render: renderText },
-      { title: '抽点', dataIndex: 'commission', key: 'commission', width: 90, align: 'right' as const, render: renderText },
-      { title: '净利', dataIndex: 'netProfit', key: 'netProfit', width: 90, align: 'right' as const, render: renderText },
-      { title: '广告22%', dataIndex: 'ad22', key: 'ad22', width: 90, align: 'right' as const, render: renderText },
-      { title: '22%净利', dataIndex: 'ad22Net', key: 'ad22Net', width: 90, align: 'right' as const, render: renderText },
-      { title: '广告30%', dataIndex: 'ad30', key: 'ad30', width: 90, align: 'right' as const, render: renderText },
-      { title: '30%净利', dataIndex: 'ad30Net', key: 'ad30Net', width: 90, align: 'right' as const, render: renderText },
-      { title: '赔偿', dataIndex: 'compensation', key: 'compensation', width: 90, align: 'right' as const, render: renderText },
+      {
+        title: '包裹重量',
+        dataIndex: 'packageWeight',
+        key: 'packageWeight',
+        width: canEditLedger ? 166 : 100,
+        align: 'right' as const,
+        render: (_, record) => canEditLedger
+          ? <EditableWeightCell record={record} onSaved={handleWeightSaved} />
+          : renderText(record.packageWeight),
+      },
+      { title: '运费', dataIndex: 'freight', key: 'freight', width: 90, align: 'right' as const, render: renderAmount },
+      { title: '抽点', dataIndex: 'commission', key: 'commission', width: 90, align: 'right' as const, render: renderAmount },
+      { title: '净利', dataIndex: 'netProfit', key: 'netProfit', width: 90, align: 'right' as const, render: renderAmount },
+      { title: '广告22%', dataIndex: 'ad22', key: 'ad22', width: 90, align: 'right' as const, render: renderAmount },
+      { title: '22%净利', dataIndex: 'ad22Net', key: 'ad22Net', width: 90, align: 'right' as const, render: renderAmount },
+      { title: '广告30%', dataIndex: 'ad30', key: 'ad30', width: 90, align: 'right' as const, render: renderAmount },
+      { title: '30%净利', dataIndex: 'ad30Net', key: 'ad30Net', width: 90, align: 'right' as const, render: renderAmount },
+      { title: '赔偿', dataIndex: 'compensation', key: 'compensation', width: 90, align: 'right' as const, render: renderAmount },
       { title: '备注', dataIndex: 'remark', key: 'remark', width: 160, ellipsis: true, render: renderText },
     )
     if (canDeleteLedger) {
@@ -209,7 +300,7 @@ export function LedgerPage() {
       })
     }
     return base
-  }, [canDeleteLedger, currentShop, page, pageSize])
+  }, [canDeleteLedger, canEditLedger, currentShop, handleDelete, handleWeightSaved, page, pageSize])
 
   const rowSelection = canDeleteLedger ? {
     selectedRowKeys,
@@ -263,8 +354,8 @@ export function LedgerPage() {
         keyboard={!isUploading}
         onCancel={() => { if (!isUploading) { setFile(null); setIsImportModalOpen(false) } }}
       >
-        <Typography.Paragraph type="secondary">上传订单统计表 Excel（25 个字段，含跟踪号），系统按"店铺"列自动归类；不存在的店铺会自动创建。</Typography.Paragraph>
-        <Alert type="info" showIcon message="支持 .xlsx / .xls；表头需包含：店铺、订单号、售价、采购金额 等 25 个字段；单批最多 5 万行；毛利/净利/广告等公式列不重算，原样保存。" />
+        <Typography.Paragraph type="secondary">上传订单统计表 Excel（25 个字段，含 SKU），系统按"店铺"列自动归类；不存在的店铺会自动创建。</Typography.Paragraph>
+        <Alert type="info" showIcon message="支持 .xlsx / .xls；订单号全系统唯一，重复行自动跳过；单批最多 5 万行；导入时公式列按 Excel 保存值入库，在线修改重量时重新计算。" />
         <div className="ledger-upload-block">
           <Upload.Dragger {...uploadProps} disabled={isUploading}>
             <p className="ant-upload-drag-icon"><InboxOutlined /></p>
@@ -339,7 +430,7 @@ export function LedgerPage() {
           </Space>
         </div>
         <div className="table-wrap">
-          <Table rowKey="id" columns={columns} dataSource={items} loading={loading} rowSelection={rowSelection} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂时没有台账数据" /> }} scroll={{ x: 2800 }} pagination={false} />
+          <Table rowKey="id" columns={columns} dataSource={items} loading={loading} rowSelection={rowSelection} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂时没有台账数据" /> }} scroll={{ x: 2880 }} pagination={false} />
           {total > 0 && <div className="table-pagination"><Pagination current={page} pageSize={pageSize} total={total} showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} showQuickJumper showTotal={(count) => `共 ${count.toLocaleString()} 条`} onChange={handlePageChange} /></div>}
         </div>
       </div>

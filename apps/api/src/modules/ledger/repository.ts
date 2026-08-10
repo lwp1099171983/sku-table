@@ -1,14 +1,48 @@
 import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { LedgerListQueryDto, LedgerStats, UserRole } from '@sku-table/shared'
+import { Decimal } from 'decimal.js'
 import { db } from '../../db/client.js'
 import { ledgerBatches, ledgerItems, shopMemberRoles, shopMembers, shops } from '../../db/schema.js'
 import { hashLedgerItems } from '../imports/idempotency.js'
+import { calculateLedgerStats, calculateLedgerValues, parseLedgerAmount, roundLedgerMoney } from './calculation.js'
+import { dedupeLedgerItemsByOrderNo } from './dedupe.js'
 import type { ParsedLedgerItem } from './parser.js'
 
 const INSERT_CHUNK_SIZE = 1_000
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+const ledgerItemSelection = {
+  id: ledgerItems.id,
+  batchId: ledgerItems.batchId,
+  shopId: ledgerItems.shopId,
+  shopName: shops.name,
+  seq: ledgerItems.seq,
+  month: ledgerItems.month,
+  orderDate: ledgerItems.orderDate,
+  orderNo: ledgerItems.orderNo,
+  sku: ledgerItems.sku,
+  salePrice: ledgerItems.salePrice,
+  quantity: ledgerItems.quantity,
+  unitPrice: ledgerItems.unitPrice,
+  purchaseAmount: ledgerItems.purchaseAmount,
+  purchaseDate: ledgerItems.purchaseDate,
+  purchasePlatform: ledgerItems.purchasePlatform,
+  purchaseOrderNo: ledgerItems.purchaseOrderNo,
+  grossProfit: ledgerItems.grossProfit,
+  channelName: ledgerItems.channelName,
+  packageWeight: ledgerItems.packageWeight,
+  freight: ledgerItems.freight,
+  commission: ledgerItems.commission,
+  netProfit: ledgerItems.netProfit,
+  ad22: ledgerItems.ad22,
+  ad22Net: ledgerItems.ad22Net,
+  ad30: ledgerItems.ad30,
+  ad30Net: ledgerItems.ad30Net,
+  compensation: ledgerItems.compensation,
+  remark: ledgerItems.remark,
+}
 
 // 台账导入目标店铺不属于导入者时抛出，路由层转 403
 export class ShopAccessForbiddenError extends Error {
@@ -100,9 +134,11 @@ export async function createLedgerImport(input: {
   importer: { id: string; isAdmin: boolean; roles: UserRole[] }
   items: ParsedLedgerItem[]
 }) {
+  const deduped = dedupeLedgerItemsByOrderNo(input.items)
+
   // 按店铺分组
   const byShop = new Map<string, ParsedLedgerItem[]>()
-  for (const item of input.items) {
+  for (const item of deduped.items) {
     const list = byShop.get(item.shopName) ?? []
     list.push(item)
     byShop.set(item.shopName, list)
@@ -114,9 +150,11 @@ export async function createLedgerImport(input: {
     fingerprints.set(shopName, hashLedgerItems(shopItems))
   }
 
-  const { batches, reused } = await db.transaction(async (tx) => {
+  const { batches, reused, importedRows, skippedRows } = await db.transaction(async (tx) => {
     const results: Awaited<ReturnType<typeof toPublicBatch>>[] = []
     let reusedCount = 0
+    let importedRows = 0
+    let skippedRows = deduped.skippedRows
 
     for (const [shopName, shopItems] of byShop) {
       const shopId = await findOrCreateShop(tx, shopName, input.importer)
@@ -127,7 +165,7 @@ export async function createLedgerImport(input: {
         fileName: input.fileName,
         uploadedBy: input.uploadedBy,
         idempotencyKey,
-        totalRows: shopItems.length,
+        totalRows: 0,
       }).onConflictDoNothing().returning()
 
       if (!createdBatch) {
@@ -144,19 +182,21 @@ export async function createLedgerImport(input: {
         }
         results.push(toPublicBatch(existing, shopName))
         reusedCount += 1
+        skippedRows += shopItems.length
         continue
       }
 
+      let importedForShop = 0
       for (let start = 0; start < shopItems.length; start += INSERT_CHUNK_SIZE) {
         const chunk = shopItems.slice(start, start + INSERT_CHUNK_SIZE)
-        await tx.insert(ledgerItems).values(chunk.map((item) => ({
+        const inserted = await tx.insert(ledgerItems).values(chunk.map((item) => ({
           batchId: createdBatch.id,
           shopId,
           seq: item.seq,
           month: item.month,
           orderDate: item.orderDate,
           orderNo: item.orderNo,
-          trackingNo: item.trackingNo,
+          sku: item.sku,
           salePrice: item.salePrice,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -176,41 +216,28 @@ export async function createLedgerImport(input: {
           ad30Net: item.ad30Net,
           compensation: item.compensation,
           remark: item.remark,
-        })))
+        }))).onConflictDoNothing().returning({ id: ledgerItems.id })
+        importedForShop += inserted.length
       }
 
-      results.push(toPublicBatch(createdBatch, shopName))
+      await tx.update(ledgerBatches)
+        .set({ totalRows: importedForShop, updatedAt: new Date() })
+        .where(eq(ledgerBatches.id, createdBatch.id))
+
+      importedRows += importedForShop
+      skippedRows += shopItems.length - importedForShop
+      results.push(toPublicBatch({ ...createdBatch, totalRows: importedForShop }, shopName))
     }
 
-    return { batches: results, reused: reusedCount === results.length && results.length > 0 }
+    return {
+      batches: results,
+      reused: reusedCount === results.length && results.length > 0,
+      importedRows,
+      skippedRows,
+    }
   })
 
-  return { batches, reused }
-}
-
-// 台账统计（随筛选结果变化）：采购金额/营业额/运费/抽点 为 SUM，其余按公式推导
-function computeStats(input: {
-  purchaseAmount: number
-  revenue: number
-  freight: number
-  commission: number
-}): LedgerStats {
-  const { purchaseAmount, revenue, freight, commission } = input
-  const grossProfit = revenue - purchaseAmount
-  const netProfit = grossProfit - freight - commission
-  const withdrawalFee = (revenue - freight - commission) * 0.01
-  const pureProfit = netProfit - withdrawalFee
-
-  return {
-    purchaseAmount,
-    revenue,
-    grossProfit,
-    freight,
-    commission,
-    netProfit,
-    withdrawalFee,
-    pureProfit,
-  }
+  return { batches, reused, importedRows, skippedRows }
 }
 
 // 列表：shopIds 为 null 表示不限店铺（管理员"全部"视图）；统计基于全部筛选行
@@ -246,52 +273,26 @@ export async function listLedgerItems(
     })
       .from(ledgerItems)
       .where(where)
-    const sums = sumRows.reduce((acc, row) => {
-      const toNumber = (value: string | null) => {
-        if (value === null) return 0
-        const normalized = value.replace(/[￥¥,，\s]/g, '')
-        const number = Number(normalized)
-        return Number.isFinite(number) ? number : 0
-      }
-      acc.purchaseAmount += toNumber(row.purchaseAmount)
-      acc.revenue += toNumber(row.revenue)
-      acc.freight += toNumber(row.freight)
-      acc.commission += toNumber(row.commission)
-      return acc
-    }, { purchaseAmount: 0, revenue: 0, freight: 0, commission: 0 })
-    stats = computeStats(sums)
+    const sums = {
+      purchaseAmount: new Decimal(0),
+      revenue: new Decimal(0),
+      freight: new Decimal(0),
+      commission: new Decimal(0),
+    }
+    const addAmount = (total: Decimal, value: string | null) => {
+      const amount = parseLedgerAmount(value)
+      return amount ? total.plus(roundLedgerMoney(amount)) : total
+    }
+    for (const row of sumRows) {
+      sums.purchaseAmount = addAmount(sums.purchaseAmount, row.purchaseAmount)
+      sums.revenue = addAmount(sums.revenue, row.revenue)
+      sums.freight = addAmount(sums.freight, row.freight)
+      sums.commission = addAmount(sums.commission, row.commission)
+    }
+    stats = calculateLedgerStats(sums)
   }
 
-  const rows = await db.select({
-    id: ledgerItems.id,
-    batchId: ledgerItems.batchId,
-    shopId: ledgerItems.shopId,
-    shopName: shops.name,
-    seq: ledgerItems.seq,
-    month: ledgerItems.month,
-    orderDate: ledgerItems.orderDate,
-    orderNo: ledgerItems.orderNo,
-    trackingNo: ledgerItems.trackingNo,
-    salePrice: ledgerItems.salePrice,
-    quantity: ledgerItems.quantity,
-    unitPrice: ledgerItems.unitPrice,
-    purchaseAmount: ledgerItems.purchaseAmount,
-    purchaseDate: ledgerItems.purchaseDate,
-    purchasePlatform: ledgerItems.purchasePlatform,
-    purchaseOrderNo: ledgerItems.purchaseOrderNo,
-    grossProfit: ledgerItems.grossProfit,
-    channelName: ledgerItems.channelName,
-    packageWeight: ledgerItems.packageWeight,
-    freight: ledgerItems.freight,
-    commission: ledgerItems.commission,
-    netProfit: ledgerItems.netProfit,
-    ad22: ledgerItems.ad22,
-    ad22Net: ledgerItems.ad22Net,
-    ad30: ledgerItems.ad30,
-    ad30Net: ledgerItems.ad30Net,
-    compensation: ledgerItems.compensation,
-    remark: ledgerItems.remark,
-  })
+  const rows = await db.select(ledgerItemSelection)
     .from(ledgerItems)
     .innerJoin(shops, eq(ledgerItems.shopId, shops.id))
     .where(where)
@@ -306,6 +307,44 @@ export async function listLedgerItems(
     total: Number(total),
     stats,
   }
+}
+
+export async function getLedgerItemShopId(id: number) {
+  const [row] = await db.select({ shopId: ledgerItems.shopId })
+    .from(ledgerItems)
+    .where(eq(ledgerItems.id, id))
+    .limit(1)
+  return row?.shopId ?? null
+}
+
+export async function updateLedgerItemWeight(id: number, packageWeight: number) {
+  return db.transaction(async (tx) => {
+    const [item] = await tx.select(ledgerItemSelection)
+      .from(ledgerItems)
+      .innerJoin(shops, eq(ledgerItems.shopId, shops.id))
+      .where(eq(ledgerItems.id, id))
+      .limit(1)
+    if (!item) return null
+
+    const calculated = calculateLedgerValues({
+      salePrice: item.salePrice,
+      purchaseAmount: item.purchaseAmount,
+      channelName: item.channelName,
+      packageWeight,
+    })
+
+    const [updated] = await tx.update(ledgerItems)
+      .set(calculated)
+      .where(eq(ledgerItems.id, id))
+      .returning({ id: ledgerItems.id })
+    if (!updated) return null
+
+    return {
+      ...item,
+      ...calculated,
+      id: Number(item.id),
+    }
+  })
 }
 
 // 台账批次列表（按导入时间倒序，用于追溯导入来源）

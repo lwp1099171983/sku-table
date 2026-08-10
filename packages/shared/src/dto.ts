@@ -114,7 +114,7 @@ export interface UpdateShopMemberRequestDto {
 }
 
 export interface SetShopMemberPermissionRequestDto {
-  permissionCode: 'employee_work.delete' | 'ledger.delete'
+  permissionCode: 'employee_work.delete' | 'ledger.edit' | 'ledger.delete'
   effect: 'allow' | 'deny' | null
 }
 
@@ -164,6 +164,15 @@ export interface LedgerListResponseDto extends PageResult<LedgerItem> {
 export interface LedgerImportResponseDto {
   batches: LedgerBatch[]
   importedRows: number
+  skippedRows: number
   // 幂等命中：该文件（内容指纹）此前已导入过，未重复入库
   reused: boolean
+}
+
+export interface UpdateLedgerWeightRequestDto {
+  packageWeight: number
+}
+
+export interface UpdateLedgerWeightResponseDto {
+  item: LedgerItem
 }

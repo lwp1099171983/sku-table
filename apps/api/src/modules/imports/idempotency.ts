@@ -21,7 +21,7 @@ export function hashLedgerItems(items: ParsedLedgerItem[]): string {
       item.month,
       item.orderDate,
       item.orderNo,
-      item.trackingNo,
+      item.sku,
       item.salePrice,
       item.quantity,
       item.unitPrice,

@@ -1,7 +1,7 @@
 // 用户角色：admin 为全局管理员；leader（组长）与 customer（客服）按店铺绑定
 export type UserRole = 'admin' | 'leader' | 'customer'
 
-// 权限码最终集：delete 权限不预置给任何角色，靠用户级 allow/deny 开通
+// 权限码最终集：编辑/删除权限不预置给普通角色，靠用户级 allow/deny 开通
 export type PermissionCode =
   | 'shop.manage'
   | 'member.read'
@@ -14,6 +14,7 @@ export type PermissionCode =
   | 'ledger.read'
   | 'ledger.stats.read'
   | 'ledger.import'
+  | 'ledger.edit'
   | 'ledger.delete'
 
 export interface AuthUser {
@@ -79,7 +80,7 @@ export interface LedgerBatch {
   createdAt: string
 }
 
-// 台账明细：25 个字段（含跟踪号），导入保存原始值，公式列不重算
+// 台账明细：25 个字段（含 SKU），导入保存原始值，在线修改重量时重算公式列
 export interface LedgerItem {
   id: number
   batchId: string
@@ -89,7 +90,7 @@ export interface LedgerItem {
   month: string | null
   orderDate: string | null
   orderNo: string | null
-  trackingNo: string | null
+  sku: string | null
   salePrice: string | null
   quantity: string | null
   unitPrice: string | null

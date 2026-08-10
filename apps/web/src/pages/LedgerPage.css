@@ -6,6 +6,12 @@
 .ledger-upload-block { margin-top: 8px; }
 .ledger-month-input { width: 150px; }
 .ledger-keyword-input { width: 220px; }
+.ledger-weight-display,
+.ledger-weight-editor { min-width: 132px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.ledger-weight-display > span { min-width: 64px; text-align: right; }
+.ledger-weight-editor .ant-input-number { width: 82px; }
+.ledger-weight-display .ant-btn,
+.ledger-weight-editor .ant-btn { flex: 0 0 28px; width: 28px; height: 28px; padding: 0; }
 
 @media (max-width: 1000px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }

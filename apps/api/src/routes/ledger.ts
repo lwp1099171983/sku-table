@@ -1,14 +1,18 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { type AuthEnv, requireAuth, requirePermission } from '../modules/auth/auth.middleware.js'
+import { forbidden, type AuthEnv, requireAuth, requirePermission } from '../modules/auth/auth.middleware.js'
+import { loadAuthContextForShop } from '../modules/auth/auth.service.js'
+import { LedgerCalculationError } from '../modules/ledger/calculation.js'
 import { parseLedgerFileAsync } from '../modules/ledger/parser.js'
 import {
   createLedgerImport,
   deleteLedgerItem,
   deleteLedgerItems,
+  getLedgerItemShopId,
   listLedgerBatches,
   listLedgerItems,
   ShopAccessForbiddenError,
+  updateLedgerItemWeight,
 } from '../modules/ledger/repository.js'
 import { readBody, resolveDeleteScope, resolveShopScope } from './helpers.js'
 
@@ -29,6 +33,10 @@ const batchListQuerySchema = z.object({
 const batchDeleteSchema = z.object({
   ids: z.array(z.number().int().positive()).min(1).max(1000),
   shopId: z.string().trim().min(1).max(100).optional(),
+})
+
+const updateWeightSchema = z.object({
+  packageWeight: z.number().finite().nonnegative(),
 })
 
 export const ledgerRoutes = new Hono<AuthEnv>()
@@ -88,7 +96,7 @@ ledgerRoutes.post('/import', requireAuth, requirePermission('ledger.import'), as
 
   const authContext = context.get('authContext')
   try {
-    const { batches, reused } = await createLedgerImport({
+    const { batches, importedRows, skippedRows, reused } = await createLedgerImport({
       fileName: file.name || '未命名文件.xlsx',
       uploadedBy: context.get('authUser').id,
       importer: {
@@ -98,11 +106,43 @@ ledgerRoutes.post('/import', requireAuth, requirePermission('ledger.import'), as
       },
       items,
     })
-    const importedRows = batches.reduce((sum, batch) => sum + batch.totalRows, 0)
-    return context.json({ batches, importedRows, reused }, reused ? 200 : 201)
+    return context.json({ batches, importedRows, skippedRows, reused }, reused ? 200 : 201)
   } catch (error) {
     if (error instanceof ShopAccessForbiddenError) {
       return context.json({ code: 'FORBIDDEN', message: error.message }, 403)
+    }
+    throw error
+  }
+})
+
+ledgerRoutes.patch('/items/:id/weight', requireAuth, async (context) => {
+  const itemId = Number(context.req.param('id'))
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '记录 ID 不正确。' }, 400)
+  }
+  const body = await readBody(context, updateWeightSchema)
+  if (!body) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '包裹重量必须是大于等于 0 的数字。' }, 400)
+  }
+
+  const shopId = await getLedgerItemShopId(itemId)
+  if (!shopId) {
+    return context.json({ code: 'NOT_FOUND', message: '记录不存在。' }, 404)
+  }
+  const shopContext = await loadAuthContextForShop(context.get('authUser').id, shopId)
+  if (!shopContext?.permissions.includes('ledger.edit')) {
+    return forbidden(context)
+  }
+
+  try {
+    const item = await updateLedgerItemWeight(itemId, body.packageWeight)
+    if (!item) {
+      return context.json({ code: 'NOT_FOUND', message: '记录不存在。' }, 404)
+    }
+    return context.json({ item })
+  } catch (error) {
+    if (error instanceof LedgerCalculationError) {
+      return context.json({ code: 'LEDGER_CALCULATION_ERROR', message: error.message }, 422)
     }
     throw error
   }

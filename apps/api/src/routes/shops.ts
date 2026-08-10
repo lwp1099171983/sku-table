@@ -47,7 +47,7 @@ const updateMemberSchema = z.object({
 })
 
 const setPermissionSchema = z.object({
-  permissionCode: z.enum(['employee_work.delete', 'ledger.delete']),
+  permissionCode: z.enum(['employee_work.delete', 'ledger.edit', 'ledger.delete']),
   effect: z.enum(['allow', 'deny']).nullable(),
 })
 
@@ -173,13 +173,13 @@ shopRoutes.patch('/:shopId/members/:userId', requireShopPermission('member.manag
   return context.json({ member: toMemberDto(member, await getMemberDirectPermissions(shopId, userId)) })
 })
 
-// 设置成员用户级直接权限（删除类权限 allow/deny/关闭）
+// 设置成员用户级直接权限（编辑/删除权限 allow/deny/关闭）
 shopRoutes.put('/:shopId/members/:userId/permissions', requireShopPermission('member.manage'), async (context) => {
   const shopId = context.req.param('shopId')
   const userId = context.req.param('userId')
   const body = await readBody(context, setPermissionSchema)
   if (!body) {
-    return context.json({ code: 'VALIDATION_ERROR', message: '权限配置不正确，仅支持 employee_work.delete 与 ledger.delete。' }, 400)
+    return context.json({ code: 'VALIDATION_ERROR', message: '权限配置不正确，仅支持员工工作删除、台账编辑与台账删除。' }, 400)
   }
 
   if (!(await isShopMember(shopId, userId))) {

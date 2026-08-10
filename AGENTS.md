@@ -53,7 +53,7 @@
 │       │   │   ├── auth/           # 认证、令牌、RBAC、常量
 │       │   │   ├── imports/        # Excel 导入共享解析工具
 │       │   │   ├── employee-work/  # 员工工作记录（含批次追溯与回滚）
-│       │   │   ├── ledger/         # 台账（订单统计表，导入/列表/统计/删除/批次追溯）
+│       │   │   ├── ledger/         # 台账（订单号去重、SKU、导入/列表/统计/重量编辑/删除/批次追溯/资费计算）
 │       │   │   └── shops/          # 店铺与成员管理
 │       │   ├── middleware/         # 错误处理、认证等通用中间件
 │       │   ├── config/             # 环境变量和运行时配置
@@ -65,7 +65,7 @@
 │       └── src/                    # index.ts / dto.ts / type.ts
 ├── infra/                          # 部署和运维
 │   ├── docker/                     # Docker Compose 和环境变量示例
-│   ├── nginx/                      # 静态文件与 /api 反向代理
+│   ├── nginx/                      # HTTP/HTTPS 站点模板、未匹配域名拒绝配置与 /api 反向代理
 │   ├── scripts/                    # 部署、备份、健康检查脚本
 │   └── legacy/supabase/            # 历史兼容迁移材料（不参与主流程）
 ├── docs/                           # 需求、技术、任务和结构文档

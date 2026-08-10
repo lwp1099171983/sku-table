@@ -14,7 +14,7 @@ const ROLE_OPTIONS = [
   { value: 'customer', label: '客服' },
 ]
 
-const DELETE_PERMISSION_OPTIONS = [
+const PERMISSION_OPTIONS = [
   { value: 'allow', label: '允许' },
   { value: 'deny', label: '拒绝' },
   { value: 'off', label: '未开通' },
@@ -177,7 +177,7 @@ export function ShopMemberPage() {
     }
   }
 
-  async function setMemberPermission(member: ShopMemberDto, permissionCode: 'employee_work.delete' | 'ledger.delete', effect: 'allow' | 'deny' | null) {
+  async function setMemberPermission(member: ShopMemberDto, permissionCode: 'employee_work.delete' | 'ledger.edit' | 'ledger.delete', effect: 'allow' | 'deny' | null) {
     if (!selectedShopId) return
     try {
       await shopsService.setMemberPermission(selectedShopId, member.user.id, { permissionCode, effect })
@@ -240,9 +240,22 @@ export function ShopMemberPage() {
       render: (_, record) => (
         <Select
           value={getPermissionState(record, 'employee_work.delete')}
-          options={DELETE_PERMISSION_OPTIONS}
+          options={PERMISSION_OPTIONS}
           className="permission-select"
           onChange={(value: 'allow' | 'deny' | 'off') => void setMemberPermission(record, 'employee_work.delete', value === 'off' ? null : value)}
+        />
+      ),
+    },
+    {
+      title: '编辑台账',
+      key: 'ledgerEdit',
+      width: 130,
+      render: (_, record) => (
+        <Select
+          value={getPermissionState(record, 'ledger.edit')}
+          options={PERMISSION_OPTIONS}
+          className="permission-select"
+          onChange={(value: 'allow' | 'deny' | 'off') => void setMemberPermission(record, 'ledger.edit', value === 'off' ? null : value)}
         />
       ),
     },
@@ -253,7 +266,7 @@ export function ShopMemberPage() {
       render: (_, record) => (
         <Select
           value={getPermissionState(record, 'ledger.delete')}
-          options={DELETE_PERMISSION_OPTIONS}
+          options={PERMISSION_OPTIONS}
           className="permission-select"
           onChange={(value: 'allow' | 'deny' | 'off') => void setMemberPermission(record, 'ledger.delete', value === 'off' ? null : value)}
         />
@@ -297,7 +310,7 @@ export function ShopMemberPage() {
         <div>
           <Typography.Text className="eyebrow">SHOPS & MEMBERS</Typography.Text>
           <Typography.Title level={1}>{APP_LABELS.shopManagement}</Typography.Title>
-          <Typography.Paragraph type="secondary">创建店铺、给组长/客服分配角色与店铺、单独开通删除权限。</Typography.Paragraph>
+          <Typography.Paragraph type="secondary">创建店铺、给组长/客服分配角色与店铺、单独配置台账编辑和删除权限。</Typography.Paragraph>
         </div>
         <Space className="page-actions">
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateShopModalOpen(true)}>创建店铺</Button>
@@ -347,7 +360,7 @@ export function ShopMemberPage() {
           extra={<Button type="primary" icon={<UserAddOutlined />} disabled={!selectedShopId} onClick={openAddMemberModal}>添加成员</Button>}
         >
           <div className="table-wrap">
-            <Table rowKey={(record) => record.user.id} columns={columns} dataSource={members} loading={loadingMembers} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该店铺还没有成员" /> }} scroll={{ x: 900 }} pagination={false} />
+            <Table rowKey={(record) => record.user.id} columns={columns} dataSource={members} loading={loadingMembers} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该店铺还没有成员" /> }} scroll={{ x: 1030 }} pagination={false} />
           </div>
         </Card>
       </div>

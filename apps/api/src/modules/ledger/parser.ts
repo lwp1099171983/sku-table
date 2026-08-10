@@ -1,14 +1,16 @@
 import * as XLSX from 'xlsx'
 import { assertExcelFile, MAX_ROWS, normalizeHeader, normalizeText } from '../imports/xlsx.js'
 
-// 24 个字段的表头别名映射（normalizeHeader 后的 key）
+// 25 个字段的表头别名映射（normalizeHeader 后的 key）
 const headerAliases: Record<string, keyof ParsedLedgerItem> = {
   '序号': 'seq',
   '月份': 'month',
   '订单日期': 'orderDate',
   '店铺': 'shopName',
   '订单号': 'orderNo',
-  '跟踪号': 'trackingNo',
+  'SKU': 'sku',
+  'sku': 'sku',
+  '跟踪号': 'sku', // 兼容旧版台账文件
   '售价': 'salePrice',
   '数量': 'quantity',
   '产品ID': 'quantity', // 用户 Excel 中"数量"对应"产品ID"列
@@ -40,7 +42,7 @@ export interface ParsedLedgerItem {
   month: string | null
   orderDate: string | null
   orderNo: string | null
-  trackingNo: string | null
+  sku: string | null
   salePrice: string | null
   quantity: string | null
   unitPrice: string | null
@@ -153,7 +155,7 @@ function parseSheet(sheet: XLSX.WorkSheet): ParsedLedgerItem[] {
       month,
       orderDate,
       orderNo: normalizeText(getField('orderNo')),
-      trackingNo: normalizeText(getField('trackingNo')),
+      sku: normalizeText(getField('sku')),
       salePrice: normalizeText(getField('salePrice')),
       quantity: normalizeText(getField('quantity')),
       unitPrice: normalizeText(getField('unitPrice')),

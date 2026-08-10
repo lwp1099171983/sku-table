@@ -26,7 +26,7 @@ export const shopsService = {
     return data.member
   },
 
-  async setMemberPermission(shopId: string, userId: string, payload: { permissionCode: 'employee_work.delete' | 'ledger.delete'; effect: 'allow' | 'deny' | null }): Promise<ShopMemberDto> {
+  async setMemberPermission(shopId: string, userId: string, payload: { permissionCode: 'employee_work.delete' | 'ledger.edit' | 'ledger.delete'; effect: 'allow' | 'deny' | null }): Promise<ShopMemberDto> {
     const { data } = await apiClient.put<{ member: ShopMemberDto }>(`/shops/${shopId}/members/${userId}/permissions`, payload)
     return data.member
   },
