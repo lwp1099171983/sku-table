@@ -8,3 +8,4 @@ dist/
 !infra/docker/.env.local.example
 *.log
 infra/scripts/.deploy.env
+.scratch/backups/
