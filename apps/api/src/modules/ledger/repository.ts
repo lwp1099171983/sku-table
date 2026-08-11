@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { LedgerListQueryDto, LedgerStats, UserRole } from '@sku-table/shared'
 import { Decimal } from 'decimal.js'
@@ -45,6 +45,16 @@ const ledgerItemSelection = {
   tailFee: ledgerItems.tailFee,
   shippingRateVersionId: ledgerItems.shippingRateVersionId,
   remark: ledgerItems.remark,
+  deletedAt: ledgerItems.deletedAt,
+  deletedBy: ledgerItems.deletedBy,
+}
+
+function toPublicLedgerItem<T extends { id: number; deletedAt: Date | null }>(row: T) {
+  return {
+    ...row,
+    id: Number(row.id),
+    deletedAt: row.deletedAt?.toISOString() ?? null,
+  }
 }
 
 // 台账导入目标店铺不属于导入者时抛出，路由层转 403
@@ -52,6 +62,13 @@ export class ShopAccessForbiddenError extends Error {
   constructor(shopName: string) {
     super(`无权向店铺「${shopName}」导入台账数据。`)
     this.name = 'ShopAccessForbiddenError'
+  }
+}
+
+export class LedgerRestoreConflictError extends Error {
+  constructor() {
+    super('无法恢复：当前台账中已存在相同订单号。')
+    this.name = 'LedgerRestoreConflictError'
   }
 }
 
@@ -275,8 +292,10 @@ export async function listLedgerItems(
   shopIds: string[] | null,
   query: Required<Pick<LedgerListQueryDto, 'page' | 'pageSize'>> & Omit<LedgerListQueryDto, 'page' | 'pageSize'>,
   includeStats = true,
+  onlyDeleted = false,
 ) {
   const filters: SQL[] = []
+  filters.push(onlyDeleted ? isNotNull(ledgerItems.deletedAt) : isNull(ledgerItems.deletedAt))
   if (shopIds) filters.push(inArray(ledgerItems.shopId, shopIds))
   if (query.startMonth) filters.push(gte(ledgerItems.orderMonth, query.startMonth))
   if (query.endMonth) filters.push(lte(ledgerItems.orderMonth, query.endMonth))
@@ -336,7 +355,7 @@ export async function listLedgerItems(
     .offset((query.page - 1) * query.pageSize)
 
   return {
-    items: rows.map((row) => ({ ...row, id: Number(row.id) })),
+    items: rows.map(toPublicLedgerItem),
     page: query.page,
     pageSize: query.pageSize,
     total: Number(total),
@@ -347,7 +366,7 @@ export async function listLedgerItems(
 export async function getLedgerItemShopId(id: number) {
   const [row] = await db.select({ shopId: ledgerItems.shopId })
     .from(ledgerItems)
-    .where(eq(ledgerItems.id, id))
+    .where(and(eq(ledgerItems.id, id), isNull(ledgerItems.deletedAt)))
     .limit(1)
   return row?.shopId ?? null
 }
@@ -357,7 +376,7 @@ export async function updateLedgerItemWeight(id: number, packageWeight: number) 
     const [item] = await tx.select(ledgerItemSelection)
       .from(ledgerItems)
       .innerJoin(shops, eq(ledgerItems.shopId, shops.id))
-      .where(eq(ledgerItems.id, id))
+      .where(and(eq(ledgerItems.id, id), isNull(ledgerItems.deletedAt)))
       .limit(1)
     if (!item) return null
 
@@ -380,16 +399,15 @@ export async function updateLedgerItemWeight(id: number, packageWeight: number) 
 
     const [updated] = await tx.update(ledgerItems)
       .set({ ...calculated, shippingRateVersionId: rate.versionId })
-      .where(eq(ledgerItems.id, id))
+      .where(and(eq(ledgerItems.id, id), isNull(ledgerItems.deletedAt)))
       .returning({ id: ledgerItems.id })
     if (!updated) return null
 
-    return {
+    return toPublicLedgerItem({
       ...item,
       ...calculated,
       shippingRateVersionId: rate.versionId,
-      id: Number(item.id),
-    }
+    })
   })
 }
 
@@ -430,14 +448,15 @@ export async function listLedgerBatches(shopIds: string[] | null, page: number, 
   }
 }
 
-// 硬删除明细并同步扣减批次 total_rows（不低于 0），返回实际删除条数
-// 用 DELETE ... RETURNING 在事务内拿到真实删除行，避免并发重复删除时按"预查询行数"重复扣减
-async function deleteItemsByIds(ids: number[], shopIds: string[] | null) {
+// 软删除明细并同步扣减批次 total_rows（不低于 0），返回实际删除条数。
+// 用 UPDATE ... RETURNING 在事务内拿到真实更新行，避免并发重复删除时重复扣减。
+async function softDeleteItemsByIds(ids: number[], shopIds: string[] | null, userId: string) {
   const scope = shopIds ? inArray(ledgerItems.shopId, shopIds) : undefined
 
   return db.transaction(async (tx) => {
-    const deletedRows = await tx.delete(ledgerItems)
-      .where(and(inArray(ledgerItems.id, ids), scope))
+    const deletedRows = await tx.update(ledgerItems)
+      .set({ deletedAt: new Date(), deletedBy: userId })
+      .where(and(inArray(ledgerItems.id, ids), scope, isNull(ledgerItems.deletedAt)))
       .returning({ batchId: ledgerItems.batchId })
 
     if (deletedRows.length === 0) {
@@ -461,10 +480,37 @@ async function deleteItemsByIds(ids: number[], shopIds: string[] | null) {
   })
 }
 
-export async function deleteLedgerItem(id: number, shopIds: string[] | null) {
-  return deleteItemsByIds([id], shopIds)
+export async function deleteLedgerItem(id: number, shopIds: string[] | null, userId: string) {
+  return softDeleteItemsByIds([id], shopIds, userId)
 }
 
-export async function deleteLedgerItems(ids: number[], shopIds: string[] | null) {
-  return deleteItemsByIds(ids, shopIds)
+export async function deleteLedgerItems(ids: number[], shopIds: string[] | null, userId: string) {
+  return softDeleteItemsByIds(ids, shopIds, userId)
+}
+
+// 管理员从回收站恢复单条台账，并同步恢复批次有效行数。
+export async function restoreLedgerItem(id: number) {
+  try {
+    return await db.transaction(async (tx) => {
+      const [restored] = await tx.update(ledgerItems)
+        .set({ deletedAt: null, deletedBy: null })
+        .where(and(eq(ledgerItems.id, id), isNotNull(ledgerItems.deletedAt)))
+        .returning({ batchId: ledgerItems.batchId })
+      if (!restored) return 0
+
+      await tx.update(ledgerBatches)
+        .set({
+          totalRows: sql`${ledgerBatches.totalRows} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(ledgerBatches.id, restored.batchId))
+
+      return 1
+    })
+  } catch (error) {
+    if ((error as { code?: string }).code === '23505') {
+      throw new LedgerRestoreConflictError()
+    }
+    throw error
+  }
 }

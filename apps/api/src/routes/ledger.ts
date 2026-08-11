@@ -11,6 +11,8 @@ import {
   getLedgerItemShopId,
   listLedgerBatches,
   listLedgerItems,
+  LedgerRestoreConflictError,
+  restoreLedgerItem,
   ShopAccessForbiddenError,
   updateLedgerItemWeight,
 } from '../modules/ledger/repository.js'
@@ -23,6 +25,7 @@ const listQuerySchema = z.object({
   startMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
   endMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
   keyword: z.string().trim().max(200).optional(),
+  status: z.enum(['active', 'deleted']).default('active'),
 }).refine(
   ({ startMonth, endMonth }) => Boolean(startMonth) === Boolean(endMonth),
 ).refine(
@@ -72,14 +75,19 @@ ledgerRoutes.get('/', requireAuth, async (context) => {
   const scope = await resolveShopScope(context, result.data.shopId, 'ledger.read')
   if (scope instanceof Response) return scope
 
-  const canViewStats = context.get('authContext').permissions.includes('ledger.stats.read')
+  const isDeletedView = result.data.status === 'deleted'
+  if (isDeletedView && !context.get('authContext').roles.includes('admin')) {
+    return forbidden(context, '只有管理员可以查看已删除台账。')
+  }
+
+  const canViewStats = !isDeletedView && context.get('authContext').permissions.includes('ledger.stats.read')
   return context.json(await listLedgerItems(scope.shopIds, {
     page: result.data.page,
     pageSize: result.data.pageSize,
     startMonth: result.data.startMonth,
     endMonth: result.data.endMonth,
     keyword: result.data.keyword,
-  }, canViewStats))
+  }, canViewStats, isDeletedView))
 })
 
 ledgerRoutes.get('/batches', requireAuth, async (context) => {
@@ -253,7 +261,7 @@ ledgerRoutes.delete('/items/:id', requireAuth, async (context) => {
   const scope = await resolveDeleteScope(context, 'ledger.delete', context.req.query('shopId'))
   if (scope instanceof Response) return scope
 
-  const deleted = await deleteLedgerItem(itemId, scope.shopIds)
+  const deleted = await deleteLedgerItem(itemId, scope.shopIds, context.get('authUser').id)
   if (deleted === 0) {
     return context.json({ code: 'NOT_FOUND', message: '记录不存在或无权删除。' }, 404)
   }
@@ -269,6 +277,30 @@ ledgerRoutes.post('/items/batch-delete', requireAuth, async (context) => {
   const scope = await resolveDeleteScope(context, 'ledger.delete', body.shopId)
   if (scope instanceof Response) return scope
 
-  const deleted = await deleteLedgerItems(body.ids, scope.shopIds)
+  const deleted = await deleteLedgerItems(body.ids, scope.shopIds, context.get('authUser').id)
   return context.json({ deleted })
+})
+
+// 回收站恢复仅限管理员，避免已获删除权限的成员绕过业务审核。
+ledgerRoutes.post('/items/:id/restore', requireAuth, async (context) => {
+  const itemId = Number(context.req.param('id'))
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '记录 ID 不正确。' }, 400)
+  }
+  if (!context.get('authContext').roles.includes('admin')) {
+    return forbidden(context, '只有管理员可以恢复已删除台账。')
+  }
+
+  try {
+    const restored = await restoreLedgerItem(itemId)
+    if (restored === 0) {
+      return context.json({ code: 'NOT_FOUND', message: '已删除台账不存在或已恢复。' }, 404)
+    }
+    return context.json({ restored })
+  } catch (error) {
+    if (error instanceof LedgerRestoreConflictError) {
+      return context.json({ code: 'LEDGER_RESTORE_CONFLICT', message: error.message }, 409)
+    }
+    throw error
+  }
 })

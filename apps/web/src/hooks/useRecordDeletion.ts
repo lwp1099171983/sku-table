@@ -7,6 +7,9 @@ export function useRecordDeletion(options: {
   batchDelete: (ids: number[], shopId?: string | null) => Promise<{ deleted: number }>
   shopId?: string | null
   onDeleted: () => Promise<void>
+  successMessage?: (count: number) => string
+  errorMessage?: string
+  confirmText?: string
 }) {
   const { message, modal } = AntdApp.useApp()
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -18,12 +21,12 @@ export function useRecordDeletion(options: {
       const result = ids.length === 1
         ? await options.deleteItem(ids[0], options.shopId)
         : await options.batchDelete(ids, options.shopId)
-      message.success(`已删除 ${result.deleted.toLocaleString()} 条记录。`)
+      message.success(options.successMessage?.(result.deleted) ?? `已删除 ${result.deleted.toLocaleString()} 条记录。`)
       setSelectedRowKeys([])
       await options.onDeleted()
     } catch (error) {
       const apiMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message
-      message.error(apiMessage || '删除失败，请稍后重试。')
+      message.error(apiMessage || options.errorMessage || '删除失败，请稍后重试。')
     } finally {
       setIsDeleting(false)
     }
@@ -33,7 +36,7 @@ export function useRecordDeletion(options: {
     modal.confirm({
       title,
       content,
-      okText: '删除',
+      okText: options.confirmText ?? '删除',
       okButtonProps: { danger: true },
       cancelText: '取消',
       onOk: () => handleDelete(ids),

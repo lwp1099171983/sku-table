@@ -80,7 +80,8 @@ export interface LedgerBatch {
   createdAt: string
 }
 
-// 台账明细：25 个字段（含 SKU），导入保存原始值，在线修改重量时重算公式列
+// 台账明细：25 个字段（含 SKU），导入保存原始值，在线修改重量时重算公式列。
+// deletedAt/deletedBy 非空表示已移入回收站，仅管理员可查看和恢复。
 export interface LedgerItem {
   id: number
   batchId: string
@@ -111,6 +112,8 @@ export interface LedgerItem {
   tailFee: string | null
   shippingRateVersionId: string | null
   remark: string | null
+  deletedAt: string | null
+  deletedBy: string | null
 }
 
 // 物流资费版本与规则：管理员维护版本，台账重量重算时锁定实际使用版本。

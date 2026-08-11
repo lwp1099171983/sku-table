@@ -53,11 +53,11 @@
 │       │   │   ├── auth/           # 认证、令牌、RBAC、常量
 │       │   │   ├── imports/        # Excel 导入共享解析工具
 │       │   │   ├── employee-work/  # 员工工作记录（含批次追溯与回滚）
-│       │   │   ├── ledger/         # 台账（订单号去重、SKU、导入/列表/统计/重量编辑/删除/批次追溯/资费版本计算）
+│       │   │   ├── ledger/         # 台账（订单号去重、SKU、导入/列表/统计/重量编辑/软删除恢复/批次追溯/资费版本计算）
 │       │   │   └── shops/          # 店铺与成员管理
 │       │   ├── middleware/         # 错误处理、认证等通用中间件
 │       │   ├── config/             # 环境变量、运行时和固定汇率配置
-│       │   └── db/                 # client、schema、migrate、seed、migrations（含 RBAC 目录与客服导入权限迁移）
+│       │   └── db/                 # client、schema、migrate、seed、migrations（含 RBAC、客服导入权限与台账软删除迁移）
 │       ├── package.json
 │       └── Dockerfile
 ├── packages/

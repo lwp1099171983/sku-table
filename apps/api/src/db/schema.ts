@@ -244,12 +244,17 @@ export const ledgerItems = pgTable('ledger_items', {
   // 仅重量重算过的记录保存使用版本；Excel 原始导入记录保持为空。
   shippingRateVersionId: uuid('shipping_rate_version_id'),
   remark: text('remark'),
+  // 软删除：默认查询排除已删除明细，管理员可在回收站恢复。
+  deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'date' }),
+  deletedBy: uuid('deleted_by'),
 }, (table) => [
   index('ledger_items_shop_batch_id_idx').on(table.shopId, table.batchId, table.id),
+  index('ledger_items_active_shop_batch_id_idx').on(table.shopId, table.batchId, table.id).where(sql`${table.deletedAt} is null`),
   index('ledger_items_shop_month_idx').on(table.shopId, table.month),
   index('ledger_items_order_month_idx').on(table.orderMonth),
   index('ledger_items_shipping_rate_version_idx').on(table.shippingRateVersionId),
-  uniqueIndex('ledger_items_order_no_unique').on(table.orderNo).where(sql`${table.orderNo} is not null`),
+  index('ledger_items_deleted_at_idx').on(table.deletedAt).where(sql`${table.deletedAt} is not null`),
+  uniqueIndex('ledger_items_order_no_active_unique').on(table.orderNo).where(sql`${table.orderNo} is not null and ${table.deletedAt} is null`),
 ])
 
 export type LedgerItemRow = typeof ledgerItems.$inferSelect

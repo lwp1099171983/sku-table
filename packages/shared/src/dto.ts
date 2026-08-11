@@ -157,6 +157,7 @@ export interface LedgerListQueryDto {
   startMonth?: string
   endMonth?: string
   keyword?: string
+  status?: 'active' | 'deleted'
 }
 
 export interface LedgerListResponseDto extends PageResult<LedgerItem> {
