@@ -67,6 +67,7 @@
 │   ├── docker/                     # Docker Compose 和环境变量示例
 │   ├── nginx/                      # HTTP/HTTPS 站点模板、未匹配域名拒绝配置与 /api 反向代理
 │   ├── scripts/                    # 部署、备份、健康检查脚本
+│   ├── systemd/                     # 数据库备份等 systemd 单元模板
 │   └── legacy/supabase/            # 历史兼容迁移材料（不参与主流程）
 ├── docs/                           # 需求、技术、任务和结构文档
 ├── .agents/skills/                 # 项目辅助技能

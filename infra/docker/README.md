@@ -5,7 +5,7 @@
 - Ubuntu 服务器已安装 Docker Engine 和 Docker Compose 插件；
 - 服务器防火墙只开放 80、443 和受限 SSH，不开放 3000 和 5432；
 - 项目代码已上传到服务器；
-- COS 可以保留现有配置，但本阶段不启用备份定时任务。
+- COS 备份配置见 [`../scripts/README.md`](../scripts/README.md)；只有 PostgreSQL 验收通过后才能启用备份定时任务。
 
 ## 首次部署
 
@@ -61,7 +61,7 @@
 
 - Nginx 提供 HTTP/HTTPS、证书挂载和 HTTP→HTTPS 跳转；证书由 Let’s Encrypt 管理；
 - API 当前只有 `/api/health`，任务 01~05 的数据库迁移、认证和业务链路尚未实现；
-- COS 自动备份属于任务 07，PostgreSQL 真实服务器验收通过前不得启用。
+- COS 自动备份通过 `backup` Compose profile 单独运行，不随 Web/API 常规部署启动；systemd timer 负责每日调用该 profile。
 
 ## 访问域名（APP_DOMAIN）
 

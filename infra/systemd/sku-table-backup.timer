@@ -1,0 +1,11 @@
+[Unit]
+Description=Run sku-table database backup every day
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+RandomizedDelaySec=10m
+Unit=sku-table-backup.service
+
+[Install]
+WantedBy=timers.target
