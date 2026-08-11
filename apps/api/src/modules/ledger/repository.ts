@@ -1,5 +1,5 @@
 import { and, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
-import type { SQL } from 'drizzle-orm'
+import type { SQL, SQLWrapper } from 'drizzle-orm'
 import type { LedgerListQueryDto, LedgerStats, UserRole } from '@sku-table/shared'
 import { Decimal } from 'decimal.js'
 import { db } from '../../db/client.js'
@@ -55,6 +55,16 @@ function toPublicLedgerItem<T extends { id: number; deletedAt: Date | null }>(ro
     id: Number(row.id),
     deletedAt: row.deletedAt?.toISOString() ?? null,
   }
+}
+
+// 台账金额保留 Excel 原始文本；仅对可解析且数值小于 0 的内容匹配，避免非法文本参与类型转换。
+function createNegativeAmountFilter(column: SQLWrapper): SQL {
+  const normalized = sql<string>`regexp_replace(coalesce(${column}, ''), '[￥¥,，[:space:]]', '', 'g')`
+  return sql`case
+    when ${normalized} ~ '^-([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$'
+    then cast(${normalized} as numeric) < 0
+    else false
+  end`
 }
 
 // 台账导入目标店铺不属于导入者时抛出，路由层转 403
@@ -307,6 +317,9 @@ export async function listLedgerItems(
     if (keywordClause) filters.push(keywordClause)
   }
   if (query.sku) filters.push(ilike(ledgerItems.sku, `%${query.sku}%`))
+  if (query.netProfitLoss) filters.push(createNegativeAmountFilter(ledgerItems.netProfit))
+  if (query.ad22NetLoss) filters.push(createNegativeAmountFilter(ledgerItems.ad22Net))
+  if (query.ad30NetLoss) filters.push(createNegativeAmountFilter(ledgerItems.ad30Net))
   const where = filters.length > 0 ? and(...filters) : undefined
 
   const [{ total }] = await db.select({ total: count(ledgerItems.id) })

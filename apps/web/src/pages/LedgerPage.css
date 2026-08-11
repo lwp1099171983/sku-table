@@ -6,6 +6,7 @@
 .ledger-upload-block { margin-top: 8px; }
 .ledger-month-range-picker { width: 280px; }
 .ledger-filter-input { width: 220px; }
+.ledger-loss-filter { width: 164px; }
 .ledger-weight-display,
 .ledger-weight-editor { min-width: 132px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
 .ledger-weight-display > span { min-width: 64px; text-align: right; }

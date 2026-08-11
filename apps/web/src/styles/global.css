@@ -28,6 +28,9 @@ button, input { font: inherit; }
 .shop-switcher { min-width: 140px; }
 .app-content { padding: 34px 40px 56px; }
 .content-page { max-width: 1440px; margin: 0 auto; }
+.data-table-page { max-width: none; }
+.data-table-page .records-section,
+.data-table-page .table-wrap { width: 100%; }
 .narrow-page { max-width: 920px; }
 .page-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 30px; }
 .page-actions { flex-wrap: wrap; justify-content: flex-end; }

@@ -1,5 +1,5 @@
 import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
-import { Alert, App as AntdApp, Button, DatePicker, Empty, Input, InputNumber, Modal, Pagination, Popconfirm, Progress, Space, Table, Tooltip, Typography, Upload } from 'antd'
+import { Alert, App as AntdApp, Button, DatePicker, Empty, Input, InputNumber, Modal, Pagination, Popconfirm, Progress, Select, Space, Table, Tooltip, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -17,6 +17,14 @@ const DEFAULT_PAGE_SIZE = 30
 const PAGE_SIZE_OPTIONS = [30, 50, 100]
 const FILTER_INPUT_DEBOUNCE_MS = 300
 type MonthRangeValue = [Dayjs | null, Dayjs | null] | null
+type LossFilterValue = 'all' | 'loss'
+
+function getLossFilterOptions(label: string) {
+  return [
+    { value: 'all', label: `${label}：全部` },
+    { value: 'loss', label: `${label}：仅亏损` },
+  ]
+}
 
 const EMPTY_STATS: LedgerStats = {
   purchaseAmount: 0,
@@ -127,6 +135,9 @@ export function LedgerPage() {
   const [filterMonthRange, setFilterMonthRange] = useState<MonthRangeValue>(getCurrentYearMonthRange)
   const [filterKeyword, setFilterKeyword] = useState('')
   const [filterSku, setFilterSku] = useState('')
+  const [filterNetProfitLoss, setFilterNetProfitLoss] = useState<LossFilterValue>('all')
+  const [filterAd22NetLoss, setFilterAd22NetLoss] = useState<LossFilterValue>('all')
+  const [filterAd30NetLoss, setFilterAd30NetLoss] = useState<LossFilterValue>('all')
   const debouncedKeyword = useDebouncedValue(filterKeyword, FILTER_INPUT_DEBOUNCE_MS)
   const debouncedSku = useDebouncedValue(filterSku, FILTER_INPUT_DEBOUNCE_MS)
   const [items, setItems] = useState<LedgerItem[]>([])
@@ -156,6 +167,9 @@ export function LedgerPage() {
         endMonth: filterMonthRange?.[1]?.format('YYYY-MM'),
         keyword: debouncedKeyword.trim() || undefined,
         sku: debouncedSku.trim() || undefined,
+        netProfitLoss: filterNetProfitLoss === 'loss' || undefined,
+        ad22NetLoss: filterAd22NetLoss === 'loss' || undefined,
+        ad30NetLoss: filterAd30NetLoss === 'loss' || undefined,
       })
       setItems(result.items)
       setStats(result.stats ?? EMPTY_STATS)
@@ -165,7 +179,7 @@ export function LedgerPage() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedKeyword, debouncedSku, filterMonthRange, message, page, pageSize, shopId])
+  }, [debouncedKeyword, debouncedSku, filterAd22NetLoss, filterAd30NetLoss, filterMonthRange, filterNetProfitLoss, message, page, pageSize, shopId])
 
   const loadBatches = useCallback(async () => {
     setBatchesLoading(true)
@@ -267,11 +281,7 @@ export function LedgerPage() {
       { title: '订单号', dataIndex: 'orderNo', key: 'orderNo', width: 170, render: renderText },
       { title: 'SKU', dataIndex: 'sku', key: 'sku', width: 170, render: renderText },
       { title: '售价', dataIndex: 'salePrice', key: 'salePrice', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '数量', dataIndex: 'quantity', key: 'quantity', width: 70, align: 'right' as const, render: renderText },
-      { title: '单价', dataIndex: 'unitPrice', key: 'unitPrice', width: 90, align: 'right' as const, render: renderAmount },
       { title: '采购金额', dataIndex: 'purchaseAmount', key: 'purchaseAmount', width: 100, align: 'right' as const, render: renderAmount },
-      { title: '毛利', dataIndex: 'grossProfit', key: 'grossProfit', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '渠道名称', dataIndex: 'channelName', key: 'channelName', width: 200, ellipsis: true, render: renderText },
       {
         title: '包裹重量',
         dataIndex: 'packageWeight',
@@ -282,6 +292,8 @@ export function LedgerPage() {
           ? <EditableWeightCell record={record} onSaved={handleWeightSaved} />
           : renderText(record.packageWeight),
       },
+      { title: '毛利', dataIndex: 'grossProfit', key: 'grossProfit', width: 90, align: 'right' as const, render: renderAmount },
+      { title: '渠道名称', dataIndex: 'channelName', key: 'channelName', width: 200, ellipsis: true, render: renderText },
       { title: '运费', dataIndex: 'freight', key: 'freight', width: 90, align: 'right' as const, render: renderAmount },
       { title: '抽点', dataIndex: 'commission', key: 'commission', width: 90, align: 'right' as const, render: renderAmount },
       { title: '净利', dataIndex: 'netProfit', key: 'netProfit', width: 90, align: 'right' as const, render: renderAmount },
@@ -331,6 +343,9 @@ export function LedgerPage() {
     setFilterMonthRange(null)
     setFilterKeyword('')
     setFilterSku('')
+    setFilterNetProfitLoss('all')
+    setFilterAd22NetLoss('all')
+    setFilterAd30NetLoss('all')
     setPage(1)
   }
 
@@ -344,7 +359,7 @@ export function LedgerPage() {
   }
 
   return (
-    <section className="content-page">
+    <section className="content-page data-table-page">
       <div className="page-heading">
         <div>
           <Typography.Text className="eyebrow">ORDER LEDGER</Typography.Text>
@@ -449,11 +464,14 @@ export function LedgerPage() {
             />
             <Input className="ledger-filter-input" prefix={<SearchOutlined />} allowClear placeholder="订单号 / 采购订单号" value={filterKeyword} onChange={(event) => { setFilterKeyword(event.target.value); setPage(1) }} />
             <Input className="ledger-filter-input" prefix={<SearchOutlined />} allowClear placeholder="SKU" value={filterSku} onChange={(event) => { setFilterSku(event.target.value); setPage(1) }} />
+            <Select className="ledger-loss-filter" aria-label="净利是否亏损" value={filterNetProfitLoss} options={getLossFilterOptions('净利')} onChange={(value: LossFilterValue) => { setFilterNetProfitLoss(value); setPage(1) }} />
+            <Select className="ledger-loss-filter" aria-label="22%广告净利是否亏损" value={filterAd22NetLoss} options={getLossFilterOptions('22%广告净利')} onChange={(value: LossFilterValue) => { setFilterAd22NetLoss(value); setPage(1) }} />
+            <Select className="ledger-loss-filter" aria-label="30%广告净利是否亏损" value={filterAd30NetLoss} options={getLossFilterOptions('30%广告净利')} onChange={(value: LossFilterValue) => { setFilterAd30NetLoss(value); setPage(1) }} />
             <Button onClick={resetFilters}>清除筛选</Button>
           </Space>
         </div>
         <div className="table-wrap">
-          <Table rowKey="id" columns={columns} dataSource={items} loading={loading} rowSelection={rowSelection} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂时没有台账数据" /> }} scroll={{ x: 2880 }} pagination={false} />
+          <Table rowKey="id" columns={columns} dataSource={items} loading={loading} rowSelection={rowSelection} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂时没有台账数据" /> }} scroll={{ x: 2240 }} pagination={false} />
           {total > 0 && <div className="table-pagination"><Pagination current={page} pageSize={pageSize} total={total} showSizeChanger pageSizeOptions={PAGE_SIZE_OPTIONS} showQuickJumper showTotal={(count) => `共 ${count.toLocaleString()} 条`} onChange={handlePageChange} /></div>}
         </div>
       </div>

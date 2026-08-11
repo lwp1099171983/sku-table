@@ -158,6 +158,9 @@ export interface LedgerListQueryDto {
   endMonth?: string
   keyword?: string
   sku?: string
+  netProfitLoss?: boolean
+  ad22NetLoss?: boolean
+  ad30NetLoss?: boolean
   status?: 'active' | 'deleted'
 }
 

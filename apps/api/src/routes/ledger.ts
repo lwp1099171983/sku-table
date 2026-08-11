@@ -18,6 +18,9 @@ import {
 } from '../modules/ledger/repository.js'
 import { readBody, resolveDeleteScope, resolveShopScope } from './helpers.js'
 
+// 仅接受明确的 true / false，避免查询参数中的任意非空字符串被误判为真。
+const lossFilterSchema = z.enum(['true', 'false']).optional().transform((value) => value === 'true')
+
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(100),
@@ -26,6 +29,9 @@ const listQuerySchema = z.object({
   endMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
   keyword: z.string().trim().max(200).optional(),
   sku: z.string().trim().max(200).optional(),
+  netProfitLoss: lossFilterSchema,
+  ad22NetLoss: lossFilterSchema,
+  ad30NetLoss: lossFilterSchema,
   status: z.enum(['active', 'deleted']).default('active'),
 }).refine(
   ({ startMonth, endMonth }) => Boolean(startMonth) === Boolean(endMonth),
@@ -89,6 +95,9 @@ ledgerRoutes.get('/', requireAuth, async (context) => {
     endMonth: result.data.endMonth,
     keyword: result.data.keyword,
     sku: result.data.sku,
+    netProfitLoss: result.data.netProfitLoss,
+    ad22NetLoss: result.data.ad22NetLoss,
+    ad30NetLoss: result.data.ad30NetLoss,
   }, canViewStats, isDeletedView))
 })
 

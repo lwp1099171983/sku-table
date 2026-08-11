@@ -361,7 +361,7 @@ export function EmployeeWorkPage() {
   }
 
   return (
-    <section className="content-page">
+    <section className="content-page data-table-page">
       <div className="page-heading">
         <div>
           <Typography.Text className="eyebrow">EMPLOYEE WORK LOG</Typography.Text>
