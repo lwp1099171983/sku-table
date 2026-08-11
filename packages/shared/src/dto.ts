@@ -8,6 +8,8 @@ import type {
   LedgerStats,
   PageResult,
   PermissionCode,
+  ShippingRate,
+  ShippingRateVersion,
   Shop,
   UserRole,
 } from './type.js'
@@ -176,4 +178,17 @@ export interface UpdateLedgerWeightRequestDto {
 
 export interface UpdateLedgerWeightResponseDto {
   item: LedgerItem
+}
+
+export interface ShippingRateVersionListResponseDto {
+  items: ShippingRateVersion[]
+}
+
+export interface ShippingRateVersionDetailResponseDto {
+  version: ShippingRateVersion
+  rates: ShippingRate[]
+}
+
+export interface ImportShippingRatesResponseDto {
+  version: ShippingRateVersion
 }

@@ -5,10 +5,11 @@ import { Decimal } from 'decimal.js'
 import { db } from '../../db/client.js'
 import { ledgerBatches, ledgerItems, shopMemberRoles, shopMembers, shops } from '../../db/schema.js'
 import { hashLedgerItems } from '../imports/idempotency.js'
-import { calculateLedgerGrossProfit, calculateLedgerProfitValues, calculateLedgerStats, calculateLedgerValues, parseLedgerAmount, roundLedgerMoney } from './calculation.js'
+import { calculateLedgerGrossProfit, calculateLedgerProfitValues, calculateLedgerStats, calculateLedgerValues, LedgerCalculationError, parseLedgerAmount, roundLedgerMoney } from './calculation.js'
 import { dedupeLedgerItemsByOrderNo } from './dedupe.js'
 import type { ParsedLedgerItem } from './parser.js'
 import { calculateTailFeeAmount, normalizeTailFeeRate } from './tailFee.js'
+import { findActiveShippingRate } from './shippingRateRepository.js'
 
 const INSERT_CHUNK_SIZE = 1_000
 
@@ -42,6 +43,7 @@ const ledgerItemSelection = {
   ad30: ledgerItems.ad30,
   ad30Net: ledgerItems.ad30Net,
   tailFee: ledgerItems.tailFee,
+  shippingRateVersionId: ledgerItems.shippingRateVersionId,
   remark: ledgerItems.remark,
 }
 
@@ -359,16 +361,25 @@ export async function updateLedgerItemWeight(id: number, packageWeight: number) 
       .limit(1)
     if (!item) return null
 
+    const rate = item.channelName ? await findActiveShippingRate(tx, item.channelName) : null
+    if (!rate) {
+      const channelName = item.channelName?.trim()
+      throw new LedgerCalculationError(channelName
+        ? `渠道「${channelName}」不存在物流资费规则。`
+        : '渠道名称不能为空。')
+    }
+
     const calculated = calculateLedgerValues({
       salePrice: item.salePrice,
       purchaseAmount: item.purchaseAmount,
       channelName: item.channelName,
       packageWeight,
       tailFee: item.tailFee,
+      rate,
     })
 
     const [updated] = await tx.update(ledgerItems)
-      .set(calculated)
+      .set({ ...calculated, shippingRateVersionId: rate.versionId })
       .where(eq(ledgerItems.id, id))
       .returning({ id: ledgerItems.id })
     if (!updated) return null
@@ -376,6 +387,7 @@ export async function updateLedgerItemWeight(id: number, packageWeight: number) 
     return {
       ...item,
       ...calculated,
+      shippingRateVersionId: rate.versionId,
       id: Number(item.id),
     }
   })

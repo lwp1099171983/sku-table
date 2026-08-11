@@ -1,6 +1,5 @@
 import type { LedgerStats } from '@sku-table/shared'
 import { Decimal } from 'decimal.js'
-import { findShippingRate } from './shippingRates.js'
 import { calculateTailFeeAmount, normalizeTailFeeRate } from './tailFee.js'
 
 const MONEY_DECIMAL_PLACES = 2
@@ -10,6 +9,15 @@ export class LedgerCalculationError extends Error {
     super(message)
     this.name = 'LedgerCalculationError'
   }
+}
+
+// 资费规则由数据库版本表提供；这里保持纯计算，便于测试且不依赖数据读取方式。
+export interface ShippingRateForCalculation {
+  channelName: string
+  basePrice: Decimal.Value
+  pricePerGram: Decimal.Value
+  minWeight: number
+  maxWeight: number
 }
 
 export function parseLedgerAmount(value: string | null) {
@@ -123,6 +131,7 @@ export function calculateLedgerValues(input: {
   channelName: string | null
   packageWeight: number
   tailFee: string | null
+  rate: ShippingRateForCalculation | null
 }) {
   if (!Number.isFinite(input.packageWeight) || input.packageWeight < 0) {
     throw new LedgerCalculationError('包裹重量必须是大于等于 0 的数字。')
@@ -132,7 +141,7 @@ export function calculateLedgerValues(input: {
   if (!channelName) {
     throw new LedgerCalculationError('渠道名称不能为空。')
   }
-  const rate = findShippingRate(channelName)
+  const rate = input.rate
   if (!rate) {
     throw new LedgerCalculationError(`渠道「${channelName}」不存在物流资费规则。`)
   }

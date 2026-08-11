@@ -109,7 +109,28 @@ export interface LedgerItem {
   ad30: string | null
   ad30Net: string | null
   tailFee: string | null
+  shippingRateVersionId: string | null
   remark: string | null
+}
+
+// 物流资费版本与规则：管理员维护版本，台账重量重算时锁定实际使用版本。
+export interface ShippingRateVersion {
+  id: string
+  name: string
+  sourceFileName: string
+  isActive: boolean
+  activatedAt: string | null
+  createdAt: string
+  ruleCount: number
+}
+
+export interface ShippingRate {
+  id: number
+  channelName: string
+  basePrice: string
+  pricePerGram: string
+  minWeight: number
+  maxWeight: number
 }
 
 // 台账顶部统计（随筛选结果变化），公式见需求文档

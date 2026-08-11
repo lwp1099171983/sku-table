@@ -178,6 +178,40 @@ export const ledgerBatches = pgTable('ledger_batches', {
 
 export type LedgerBatchRow = typeof ledgerBatches.$inferSelect
 
+// 物流资费版本：同一时刻只有一个启用版本，历史版本保留以追溯重量重算口径。
+export const shippingRateVersions = pgTable('shipping_rate_versions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  sourceFileName: text('source_file_name').notNull(),
+  isActive: boolean('is_active').notNull().default(false),
+  createdBy: uuid('created_by'),
+  activatedBy: uuid('activated_by'),
+  activatedAt: timestamp('activated_at', { withTimezone: true, mode: 'date' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('shipping_rate_versions_one_active_unique').on(table.isActive).where(sql`${table.isActive}`),
+  index('shipping_rate_versions_created_at_idx').on(table.createdAt),
+])
+
+export type ShippingRateVersionRow = typeof shippingRateVersions.$inferSelect
+
+// 物流资费规则：价格采用 numeric 保存，避免浮点计算误差；重量统一为克。
+export const shippingRates = pgTable('shipping_rates', {
+  id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
+  versionId: uuid('version_id').notNull(),
+  channelName: text('channel_name').notNull(),
+  basePrice: numeric('base_price', { precision: 14, scale: 4 }).notNull(),
+  pricePerGram: numeric('price_per_gram', { precision: 14, scale: 4 }).notNull(),
+  minWeight: integer('min_weight').notNull(),
+  maxWeight: integer('max_weight').notNull(),
+}, (table) => [
+  uniqueIndex('shipping_rates_version_channel_unique').on(table.versionId, sql`lower(${table.channelName})`),
+  index('shipping_rates_version_id_idx').on(table.versionId),
+])
+
+export type ShippingRateRow = typeof shippingRates.$inferSelect
+
 // 台账明细：25 个业务字段（含 SKU）+ 归属店铺/批次；在线修改重量时重算公式列
 export const ledgerItems = pgTable('ledger_items', {
   id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
@@ -207,11 +241,14 @@ export const ledgerItems = pgTable('ledger_items', {
   ad30: text('ad30'),
   ad30Net: text('ad30_net'),
   tailFee: text('tail_fee'),
+  // 仅重量重算过的记录保存使用版本；Excel 原始导入记录保持为空。
+  shippingRateVersionId: uuid('shipping_rate_version_id'),
   remark: text('remark'),
 }, (table) => [
   index('ledger_items_shop_batch_id_idx').on(table.shopId, table.batchId, table.id),
   index('ledger_items_shop_month_idx').on(table.shopId, table.month),
   index('ledger_items_order_month_idx').on(table.orderMonth),
+  index('ledger_items_shipping_rate_version_idx').on(table.shippingRateVersionId),
   uniqueIndex('ledger_items_order_no_unique').on(table.orderNo).where(sql`${table.orderNo} is not null`),
 ])
 

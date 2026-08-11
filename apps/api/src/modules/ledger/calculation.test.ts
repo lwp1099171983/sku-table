@@ -2,11 +2,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { calculateLedgerStats, calculateLedgerValues, LedgerCalculationError } from './calculation.js'
 import { calculateTailFeeAmount } from './tailFee.js'
-import { SHIPPING_RATES } from './shippingRates.js'
 
-test('物流资费表包含源 Excel 的 89 条渠道规则', () => {
-  assert.equal(SHIPPING_RATES.length, 89)
-})
+const exampleRate = {
+  channelName: 'UNI Standard Extra Small UNI',
+  basePrice: 3,
+  pricePerGram: 0.035,
+  minWeight: 1,
+  maxWeight: 549,
+}
 
 test('按源 Excel 示例重新计算重量相关字段', () => {
   assert.deepEqual(calculateLedgerValues({
@@ -15,6 +18,7 @@ test('按源 Excel 示例重新计算重量相关字段', () => {
     channelName: 'UNI Standard Extra Small UNI',
     packageWeight: 150,
     tailFee: null,
+    rate: exampleRate,
   }), {
     packageWeight: '150',
     tailFee: '2%',
@@ -41,6 +45,7 @@ test('重量低于渠道下限时按最低计费重量计算，金额四舍五�
     channelName: 'UNI Standard Extra Small UNI',
     packageWeight: 0,
     tailFee: '2%',
+    rate: exampleRate,
   })
   assert.equal(result.freight, '3.04')
   assert.equal(result.netProfit, '16.65')
@@ -53,6 +58,7 @@ test('售价 125 使用 12%，超过 125 使用 20.5% 抽点', () => {
     channelName: 'UNI Standard Extra Small UNI',
     packageWeight: 1,
     tailFee: '2%',
+    rate: exampleRate,
   }
   assert.equal(calculateLedgerValues({ ...common, salePrice: '125' }).commission, '15.00')
   assert.equal(calculateLedgerValues({ ...common, salePrice: '126' }).commission, '25.83')
@@ -65,6 +71,7 @@ test('金额使用十进制 ROUND_HALF_UP，净利基于已舍入金额计算', 
     channelName: 'UNI Standard Extra Small UNI',
     packageWeight: 0,
     tailFee: '2%',
+    rate: exampleRate,
   })
 
   assert.equal(result.grossProfit, '-0.23')
@@ -99,6 +106,7 @@ test('超重、未知渠道和非法金额拒绝计算', () => {
     channelName: 'UNI Standard Extra Small UNI',
     packageWeight: 550,
     tailFee: '2%',
+    rate: exampleRate,
   }), LedgerCalculationError)
 
   assert.throws(() => calculateLedgerValues({
@@ -107,6 +115,7 @@ test('超重、未知渠道和非法金额拒绝计算', () => {
     channelName: '不存在的渠道',
     packageWeight: 100,
     tailFee: '2%',
+    rate: null,
   }), LedgerCalculationError)
 
   assert.throws(() => calculateLedgerValues({
@@ -115,5 +124,6 @@ test('超重、未知渠道和非法金额拒绝计算', () => {
     channelName: 'UNI Standard Extra Small UNI',
     packageWeight: 100,
     tailFee: '2%',
+    rate: exampleRate,
   }), LedgerCalculationError)
 })

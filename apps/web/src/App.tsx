@@ -8,6 +8,7 @@ import { LedgerPage } from './pages/LedgerPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterAdminPage } from './pages/RegisterAdminPage'
 import { ShopMemberPage } from './pages/ShopMemberPage'
+import { ShippingRatesPage } from './pages/ShippingRatesPage'
 
 export function App() {
   return (
@@ -20,6 +21,7 @@ export function App() {
           <Route element={<AdminRoute />}>
             <Route path="admin/shops" element={<ShopMemberPage />} />
             <Route path="admin/users" element={<AdminUsersPage />} />
+            <Route path="admin/shipping-rates" element={<ShippingRatesPage />} />
             <Route path="admin/register" element={<RegisterAdminPage />} />
           </Route>
         </Route>

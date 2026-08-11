@@ -1,4 +1,4 @@
-import { IdcardOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ScheduleOutlined, ShopOutlined, SunOutlined, TableOutlined, UserAddOutlined, UserOutlined } from '@ant-design/icons'
+import { CarOutlined, IdcardOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ScheduleOutlined, ShopOutlined, SunOutlined, TableOutlined, UserAddOutlined, UserOutlined } from '@ant-design/icons'
 import { App as AntdApp, Avatar, Button, Dropdown, Form, Input, Layout, Menu, Modal, Select, Space, Tooltip, Typography } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -38,6 +38,7 @@ export function AppLayout() {
     ...(isAdmin ? [
       { key: '/admin/shops', icon: <ShopOutlined />, label: APP_LABELS.shopManagement },
       { key: '/admin/users', icon: <IdcardOutlined />, label: APP_LABELS.accountManagement },
+      { key: '/admin/shipping-rates', icon: <CarOutlined />, label: APP_LABELS.shippingRates },
       { key: '/admin/register', icon: <UserAddOutlined />, label: APP_LABELS.adminRegistration },
     ] : []),
   ], [canViewLedger, isAdmin])
@@ -61,6 +62,8 @@ export function AppLayout() {
       ? APP_LABELS.shopManagement
       : location.pathname === '/admin/users'
         ? APP_LABELS.accountManagement
+        : location.pathname === '/admin/shipping-rates'
+          ? APP_LABELS.shippingRates
         : location.pathname === '/ledger'
           ? APP_LABELS.ledger
           : APP_LABELS.employeeWork

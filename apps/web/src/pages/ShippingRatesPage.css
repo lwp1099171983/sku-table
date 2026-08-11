@@ -1,0 +1,12 @@
+.shipping-rates-page { display: flex; flex-direction: column; gap: 18px; }
+.shipping-rates-card { margin-top: 0; }
+.shipping-rate-version-row { cursor: pointer; }
+.shipping-rate-version-selected > td { background: var(--ant-color-primary-bg) !important; }
+.shipping-rate-detail-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 6px; }
+.shipping-rate-detail-heading .ant-typography { margin: 0; }
+
+@media (max-width: 760px) {
+  .shipping-rates-page .page-heading { align-items: flex-start; }
+  .shipping-rates-page .page-heading > .ant-space { width: 100%; }
+  .shipping-rates-page .page-heading > .ant-space .ant-btn { flex: 1; }
+}

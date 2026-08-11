@@ -7,5 +7,6 @@ export const APP_LABELS = {
   shopManagement: '店铺与成员',
   adminRegistration: '注册管理员',
   accountManagement: '账号管理',
+  shippingRates: '物流资费',
   allShops: '全部店铺',
 } as const
