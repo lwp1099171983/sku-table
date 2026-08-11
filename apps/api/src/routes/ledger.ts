@@ -58,13 +58,13 @@ function logLedgerImport(
 
 export const ledgerRoutes = new Hono<AuthEnv>()
 
-ledgerRoutes.get('/', requireAuth, requirePermission('ledger.read'), async (context) => {
+ledgerRoutes.get('/', requireAuth, async (context) => {
   const result = listQuerySchema.safeParse(context.req.query())
   if (!result.success) {
     return context.json({ code: 'VALIDATION_ERROR', message: '分页或筛选条件不正确。' }, 400)
   }
 
-  const scope = resolveShopScope(context, result.data.shopId)
+  const scope = await resolveShopScope(context, result.data.shopId, 'ledger.read')
   if (scope instanceof Response) return scope
 
   const canViewStats = context.get('authContext').permissions.includes('ledger.stats.read')
@@ -76,13 +76,13 @@ ledgerRoutes.get('/', requireAuth, requirePermission('ledger.read'), async (cont
   }, canViewStats))
 })
 
-ledgerRoutes.get('/batches', requireAuth, requirePermission('ledger.read'), async (context) => {
+ledgerRoutes.get('/batches', requireAuth, async (context) => {
   const result = batchListQuerySchema.safeParse(context.req.query())
   if (!result.success) {
     return context.json({ code: 'VALIDATION_ERROR', message: '分页参数不正确。' }, 400)
   }
 
-  const scope = resolveShopScope(context, result.data.shopId)
+  const scope = await resolveShopScope(context, result.data.shopId, 'ledger.read')
   if (scope instanceof Response) return scope
 
   return context.json(await listLedgerBatches(scope.shopIds, result.data.page, result.data.pageSize))

@@ -15,20 +15,43 @@ export async function readBody<T>(context: Context<AuthEnv>, schema: z.ZodType<T
   }
 }
 
-// 解析店铺查询范围：带 shopId 时校验是否可访问；不带时管理员返回 null（全部店铺），成员返回可访问店铺
-export function resolveShopScope(
+// 解析店铺查询范围：全部视图仅返回当前账号具备目标权限的可访问店铺
+export async function resolveShopScope(
   context: Context<AuthEnv>,
   shopId?: string,
-): { shopIds: string[] | null } | Response {
+  permission?: PermissionCode,
+): Promise<{ shopIds: string[] | null } | Response> {
   const authContext = context.get('authContext')
   const accessibleIds = authContext.shops.map((shop) => shop.id)
   if (shopId) {
     if (!accessibleIds.includes(shopId)) {
       return forbidden(context, '无权访问该店铺数据。')
     }
+    if (permission) {
+      const shopContext = await loadAuthContextForShop(context.get('authUser').id, shopId)
+      if (!shopContext?.permissions.includes(permission)) {
+        return forbidden(context)
+      }
+    }
     return { shopIds: [shopId] }
   }
-  return { shopIds: authContext.roles.includes('admin') ? null : accessibleIds }
+  if (authContext.roles.includes('admin')) {
+    return { shopIds: null }
+  }
+  if (!permission) {
+    return { shopIds: accessibleIds }
+  }
+
+  const shopContexts = await Promise.all(accessibleIds.map((accessibleShopId) => (
+    loadAuthContextForShop(context.get('authUser').id, accessibleShopId)
+  )))
+  const permittedShopIds = accessibleIds.filter((_, index) => (
+    shopContexts[index]?.permissions.includes(permission)
+  ))
+  if (permittedShopIds.length === 0) {
+    return forbidden(context)
+  }
+  return { shopIds: permittedShopIds }
 }
 
 // 解析删除范围并校验删除权限：带 shopId 时按该店铺校验；不带时仅允许删除自己有删除权限的店铺

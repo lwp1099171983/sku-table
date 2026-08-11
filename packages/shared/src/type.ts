@@ -52,7 +52,7 @@ export interface EmployeeWorkBatch {
   createdAt: string
 }
 
-// 员工工作明细（列表项含店铺信息，便于管理员"全部"视图展示店铺列）
+// 员工工作明细（列表项含店铺信息，便于"全部店铺"视图展示店铺列）
 export interface EmployeeWorkItem {
   id: number
   batchId: string

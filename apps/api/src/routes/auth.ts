@@ -56,7 +56,7 @@ loginRoutes.post('/change-password', requireAuth, async (context) => {
   return context.body(null, 204)
 })
 
-// 切换当前店铺：管理员传 null 表示"全部"
+// 切换当前店铺：传 null 表示当前账号可访问的"全部店铺"
 loginRoutes.post('/switch-shop', requireAuth, async (context) => {
   const body = await readBody(context, switchShopSchema)
   if (!body) {

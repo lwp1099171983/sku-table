@@ -12,7 +12,7 @@ import type {
   UserRole,
 } from './type.js'
 
-// 当前店铺为空时表示管理员「全部」视图
+// 当前店铺为空时表示当前账号可访问的「全部店铺」视图
 export interface AuthContextDto {
   user: AuthUser
   shops: Shop[]

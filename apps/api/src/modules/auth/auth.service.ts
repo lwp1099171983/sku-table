@@ -53,11 +53,25 @@ async function buildAdminContext(user: { id: string; email: string; displayName:
   }
 }
 
-// 非管理员：按店铺成员关系加载上下文
-async function buildMemberContext(user: { id: string; email: string; displayName: string | null }, shopId?: string): Promise<AuthContextDto | null> {
+// 非管理员：按店铺成员关系加载上下文；shopId 为 null 时聚合全部可访问店铺的角色与权限
+async function buildMemberContext(user: { id: string; email: string; displayName: string | null }, shopId?: string | null): Promise<AuthContextDto | null> {
   const shops = await listUserShops(user.id)
   if (shops.length === 0) {
     return null
+  }
+
+  if (shopId === null) {
+    const shopContexts = await Promise.all(shops.map(async (shop) => ({
+      roles: await getMemberRoles(shop.id, user.id),
+      permissions: await getEffectivePermissions(shop.id, user.id),
+    })))
+    return {
+      user: toPublicAuthUser(user),
+      shops,
+      currentShop: null,
+      roles: [...new Set(shopContexts.flatMap((context) => context.roles))],
+      permissions: [...new Set(shopContexts.flatMap((context) => context.permissions))],
+    }
   }
 
   const currentShop = shopId ? shops.find((shop) => shop.id === shopId) : shops[0]
@@ -88,21 +102,21 @@ export async function loadAuthContext(userId: string): Promise<AuthContextDto | 
     : buildMemberContext(publicUser)
 }
 
-// 加载指定店铺的认证上下文（管理员可切任意店铺或"全部"；成员只能切被分配的店铺）
-export async function loadAuthContextForShop(userId: string, shopId?: string): Promise<AuthContextDto | null> {
+// 加载指定店铺的认证上下文（管理员可切任意店铺或"全部"；成员可切被分配的店铺或其"全部"视图）
+export async function loadAuthContextForShop(userId: string, shopId?: string | null): Promise<AuthContextDto | null> {
   const user = await findActiveUserById(userId)
   if (!user) {
     return null
   }
   const publicUser = { id: user.id, email: user.email, displayName: user.displayName }
   return user.isAdmin
-    ? buildAdminContext(publicUser, shopId)
+    ? buildAdminContext(publicUser, shopId ?? undefined)
     : buildMemberContext(publicUser, shopId)
 }
 
-// 切换当前店铺：管理员可传 null（全部）；成员只能传自己已分配的店铺
+// 切换当前店铺：null 表示当前账号可访问的全部店铺
 export async function switchCurrentShop(userId: string, shopId: string | null): Promise<AuthContextDto | null> {
-  return loadAuthContextForShop(userId, shopId ?? undefined)
+  return loadAuthContextForShop(userId, shopId)
 }
 
 export async function authenticate(email: string, password: string): Promise<LoginResponseDto | null> {

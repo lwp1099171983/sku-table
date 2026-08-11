@@ -44,14 +44,14 @@ function isValidDate(value: string) {
 
 export const employeeWorkRoutes = new Hono<AuthEnv>()
 
-employeeWorkRoutes.get('/', requireAuth, requirePermission('employee_work.read'), async (context) => {
+employeeWorkRoutes.get('/', requireAuth, async (context) => {
   const rawQuery = context.req.query()
   const result = listQuerySchema.safeParse(rawQuery)
   if (!result.success || (result.data.workDate && !isValidDate(result.data.workDate))) {
     return context.json({ code: 'VALIDATION_ERROR', message: '分页或筛选条件不正确。' }, 400)
   }
 
-  const scope = resolveShopScope(context, result.data.shopId)
+  const scope = await resolveShopScope(context, result.data.shopId, 'employee_work.read')
   if (scope instanceof Response) return scope
 
   const query: Required<Pick<EmployeeWorkListQueryDto, 'page' | 'pageSize'>> & Omit<EmployeeWorkListQueryDto, 'page' | 'pageSize'> = {
@@ -64,13 +64,13 @@ employeeWorkRoutes.get('/', requireAuth, requirePermission('employee_work.read')
   return context.json(await listEmployeeWorkItems(scope.shopIds, query))
 })
 
-employeeWorkRoutes.get('/batches', requireAuth, requirePermission('employee_work.read'), async (context) => {
+employeeWorkRoutes.get('/batches', requireAuth, async (context) => {
   const result = batchListQuerySchema.safeParse(context.req.query())
   if (!result.success) {
     return context.json({ code: 'VALIDATION_ERROR', message: '分页参数不正确。' }, 400)
   }
 
-  const scope = resolveShopScope(context, result.data.shopId)
+  const scope = await resolveShopScope(context, result.data.shopId, 'employee_work.read')
   if (scope instanceof Response) return scope
 
   return context.json(await listEmployeeWorkBatches(scope.shopIds, result.data.page, result.data.pageSize))
@@ -89,8 +89,8 @@ employeeWorkRoutes.post('/batches/:id/rollback', requireAuth, requirePermission(
   return context.json({ batch })
 })
 
-employeeWorkRoutes.get('/employees', requireAuth, requirePermission('employee_work.read'), async (context) => {
-  const scope = resolveShopScope(context, context.req.query('shopId'))
+employeeWorkRoutes.get('/employees', requireAuth, async (context) => {
+  const scope = await resolveShopScope(context, context.req.query('shopId'), 'employee_work.read')
   if (scope instanceof Response) return scope
   return context.json({ items: await listEmployeeNames(scope.shopIds) })
 })

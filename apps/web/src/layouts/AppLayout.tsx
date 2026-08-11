@@ -42,12 +42,12 @@ export function AppLayout() {
     ] : []),
   ], [canViewLedger, isAdmin])
 
-  // 管理员始终显示店铺切换器（含"全部"）；成员仅在有多个店铺时显示
+  // 管理员始终显示店铺切换器；成员有多个店铺时可在单店铺与全部店铺之间切换
   const showShopSwitcher = isAdmin || shops.length > 1
 
   const shopOptions = useMemo(() => {
     const options = shops.map((shop) => ({ value: shop.id, label: shop.name }))
-    if (isAdmin) {
+    if (isAdmin || shops.length > 1) {
       options.unshift({ value: ALL_SHOPS_VALUE, label: APP_LABELS.allShops })
     }
     return options
