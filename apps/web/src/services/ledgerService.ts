@@ -2,7 +2,7 @@ import type { LedgerBatch, LedgerImportResponseDto, LedgerListResponseDto, PageR
 import apiClient from './apiClient'
 
 export const ledgerService = {
-  async list(params: { page: number; pageSize: number; shopId?: string | null; startMonth?: string; endMonth?: string; keyword?: string; status?: 'active' | 'deleted' }): Promise<LedgerListResponseDto> {
+  async list(params: { page: number; pageSize: number; shopId?: string | null; startMonth?: string; endMonth?: string; keyword?: string; sku?: string; status?: 'active' | 'deleted' }): Promise<LedgerListResponseDto> {
     const { data } = await apiClient.get<LedgerListResponseDto>('/ledger', { params })
     return data
   },

@@ -157,6 +157,7 @@ export interface LedgerListQueryDto {
   startMonth?: string
   endMonth?: string
   keyword?: string
+  sku?: string
   status?: 'active' | 'deleted'
 }
 

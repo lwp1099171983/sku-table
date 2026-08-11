@@ -306,6 +306,7 @@ export async function listLedgerItems(
     )
     if (keywordClause) filters.push(keywordClause)
   }
+  if (query.sku) filters.push(ilike(ledgerItems.sku, `%${query.sku}%`))
   const where = filters.length > 0 ? and(...filters) : undefined
 
   const [{ total }] = await db.select({ total: count(ledgerItems.id) })

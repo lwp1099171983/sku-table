@@ -1,5 +1,5 @@
-import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, SearchOutlined, UndoOutlined, UploadOutlined } from '@ant-design/icons'
-import { Alert, App as AntdApp, Button, DatePicker, Empty, Input, InputNumber, Modal, Pagination, Popconfirm, Progress, Segmented, Space, Table, Tooltip, Typography, Upload } from 'antd'
+import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
+import { Alert, App as AntdApp, Button, DatePicker, Empty, Input, InputNumber, Modal, Pagination, Popconfirm, Progress, Space, Table, Tooltip, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -15,7 +15,7 @@ import './LedgerPage.css'
 
 const DEFAULT_PAGE_SIZE = 30
 const PAGE_SIZE_OPTIONS = [30, 50, 100]
-const KEYWORD_DEBOUNCE_MS = 300
+const FILTER_INPUT_DEBOUNCE_MS = 300
 type MonthRangeValue = [Dayjs | null, Dayjs | null] | null
 
 const EMPTY_STATS: LedgerStats = {
@@ -118,7 +118,7 @@ function EditableWeightCell({ record, onSaved }: { record: LedgerItem; onSaved: 
 }
 
 export function LedgerPage() {
-  const { canImportLedger, canEditLedger, canDeleteLedger, canViewLedgerStats, currentShop, isAdmin } = useAuth()
+  const { canImportLedger, canEditLedger, canDeleteLedger, canViewLedgerStats, currentShop } = useAuth()
   const { message } = AntdApp.useApp()
   const [file, setFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -126,8 +126,9 @@ export function LedgerPage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [filterMonthRange, setFilterMonthRange] = useState<MonthRangeValue>(getCurrentYearMonthRange)
   const [filterKeyword, setFilterKeyword] = useState('')
-  const [viewStatus, setViewStatus] = useState<'active' | 'deleted'>('active')
-  const debouncedKeyword = useDebouncedValue(filterKeyword, KEYWORD_DEBOUNCE_MS)
+  const [filterSku, setFilterSku] = useState('')
+  const debouncedKeyword = useDebouncedValue(filterKeyword, FILTER_INPUT_DEBOUNCE_MS)
+  const debouncedSku = useDebouncedValue(filterSku, FILTER_INPUT_DEBOUNCE_MS)
   const [items, setItems] = useState<LedgerItem[]>([])
   const [stats, setStats] = useState<LedgerStats>(EMPTY_STATS)
   const [page, setPage] = useState(1)
@@ -142,7 +143,7 @@ export function LedgerPage() {
   const [batchesLoading, setBatchesLoading] = useState(false)
 
   const shopId = currentShop?.id ?? null
-  const isDeletedView = viewStatus === 'deleted'
+  const isFilterInputPending = filterKeyword !== debouncedKeyword || filterSku !== debouncedSku
 
   const loadItems = useCallback(async () => {
     setLoading(true)
@@ -154,7 +155,7 @@ export function LedgerPage() {
         startMonth: filterMonthRange?.[0]?.format('YYYY-MM'),
         endMonth: filterMonthRange?.[1]?.format('YYYY-MM'),
         keyword: debouncedKeyword.trim() || undefined,
-        status: viewStatus,
+        sku: debouncedSku.trim() || undefined,
       })
       setItems(result.items)
       setStats(result.stats ?? EMPTY_STATS)
@@ -164,7 +165,7 @@ export function LedgerPage() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedKeyword, filterMonthRange, message, page, pageSize, shopId, viewStatus])
+  }, [debouncedKeyword, debouncedSku, filterMonthRange, message, page, pageSize, shopId])
 
   const loadBatches = useCallback(async () => {
     setBatchesLoading(true)
@@ -179,7 +180,9 @@ export function LedgerPage() {
     }
   }, [batchPage, batchPageSize, message, shopId])
 
-  useEffect(() => { void loadItems() }, [loadItems])
+  useEffect(() => {
+    if (!isFilterInputPending) void loadItems()
+  }, [isFilterInputPending, loadItems])
   useEffect(() => { if (isBatchModalOpen) void loadBatches() }, [isBatchModalOpen, loadBatches])
 
   const { selectedRowKeys, setSelectedRowKeys, isDeleting, handleDelete, confirmDelete } = useRecordDeletion({
@@ -187,9 +190,9 @@ export function LedgerPage() {
     batchDelete: ledgerService.batchDelete,
     shopId,
     onDeleted: loadItems,
-    successMessage: (count) => `已将 ${count.toLocaleString()} 条台账移入回收站。`,
-    errorMessage: '移入回收站失败，请稍后重试。',
-    confirmText: '移入回收站',
+    successMessage: (count) => `已删除 ${count.toLocaleString()} 条台账。`,
+    errorMessage: '删除台账失败，请稍后重试。',
+    confirmText: '删除',
   })
 
   const uploadProps: UploadProps = {
@@ -252,21 +255,6 @@ export function LedgerPage() {
     await loadItems()
   }, [loadItems])
 
-  const [restoringId, setRestoringId] = useState<number | null>(null)
-  const handleRestore = useCallback(async (id: number) => {
-    setRestoringId(id)
-    try {
-      await ledgerService.restoreItem(id)
-      message.success('台账已恢复。')
-      await loadItems()
-    } catch (error) {
-      const apiMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message
-      message.error(apiMessage || '恢复台账失败，请稍后重试。')
-    } finally {
-      setRestoringId(null)
-    }
-  }, [loadItems, message])
-
   const columns: ColumnsType<LedgerItem> = useMemo(() => {
     const base: ColumnsType<LedgerItem> = []
     if (currentShop === null) {
@@ -288,9 +276,9 @@ export function LedgerPage() {
         title: '包裹重量',
         dataIndex: 'packageWeight',
         key: 'packageWeight',
-        width: canEditLedger && !isDeletedView ? 166 : 100,
+        width: canEditLedger ? 166 : 100,
         align: 'right' as const,
-        render: (_, record) => canEditLedger && !isDeletedView
+        render: (_, record) => canEditLedger
           ? <EditableWeightCell record={record} onSaved={handleWeightSaved} />
           : renderText(record.packageWeight),
       },
@@ -304,28 +292,7 @@ export function LedgerPage() {
       { title: '尾程', dataIndex: 'tailFee', key: 'tailFee', width: 90, align: 'right' as const, render: renderText },
       { title: '备注', dataIndex: 'remark', key: 'remark', width: 160, ellipsis: true, render: renderText },
     )
-    if (isDeletedView) {
-      base.push(
-        { title: '删除时间', dataIndex: 'deletedAt', key: 'deletedAt', width: 180, render: (value: string | null) => value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—' },
-        {
-          title: '操作',
-          key: 'action',
-          width: 80,
-          fixed: 'right',
-          render: (_, record) => (
-            <Popconfirm
-              title="确认恢复这条台账？"
-              description="恢复后将重新参与台账列表、统计和所属导入批次行数。"
-              okText="恢复"
-              cancelText="取消"
-              onConfirm={() => void handleRestore(record.id)}
-            >
-              <Tooltip title="恢复台账"><Button type="text" icon={<UndoOutlined />} loading={restoringId === record.id} aria-label="恢复台账" /></Tooltip>
-            </Popconfirm>
-          ),
-        },
-      )
-    } else if (canDeleteLedger) {
+    if (canDeleteLedger) {
       base.push({
         title: '操作',
         key: 'action',
@@ -333,9 +300,9 @@ export function LedgerPage() {
         fixed: 'right',
         render: (_, record) => (
           <Popconfirm
-            title="确认移入回收站？"
-            description="移入后不参与台账列表、统计和所属导入批次行数，管理员可恢复。"
-            okText="移入回收站"
+            title="确认删除这条台账？"
+            description="删除后不参与台账列表、统计和所属导入批次行数。"
+            okText="删除"
             okButtonProps={{ danger: true }}
             cancelText="取消"
             onConfirm={() => handleDelete([record.id])}
@@ -346,9 +313,9 @@ export function LedgerPage() {
       })
     }
     return base
-  }, [canDeleteLedger, canEditLedger, currentShop, handleDelete, handleRestore, handleWeightSaved, isDeletedView, page, pageSize, restoringId])
+  }, [canDeleteLedger, canEditLedger, currentShop, handleDelete, handleWeightSaved, page, pageSize])
 
-  const rowSelection = canDeleteLedger && !isDeletedView ? {
+  const rowSelection = canDeleteLedger ? {
     selectedRowKeys,
     onChange: (keys: React.Key[]) => setSelectedRowKeys(keys),
   } : undefined
@@ -363,6 +330,7 @@ export function LedgerPage() {
   function resetFilters() {
     setFilterMonthRange(null)
     setFilterKeyword('')
+    setFilterSku('')
     setPage(1)
   }
 
@@ -450,7 +418,7 @@ export function LedgerPage() {
         />
       </Modal>
 
-      {canViewLedgerStats && !isDeletedView && <div className="stats-grid">
+      {canViewLedgerStats && <div className="stats-grid">
         {statCards.map((card) => (
           <div className={`stat-card${card.highlight ? ' stat-card-highlight' : ''}`} key={card.label}>
             <Typography.Text type="secondary" className="stat-label">{card.label}</Typography.Text>
@@ -461,24 +429,15 @@ export function LedgerPage() {
 
       <div className="records-section">
         <div className="section-heading">
-          <div><Typography.Title level={4}>{isDeletedView ? '台账回收站' : '台账明细'}</Typography.Title><Typography.Text type="secondary">共 {total.toLocaleString()} 条记录{canViewLedgerStats && !isDeletedView ? '（统计随筛选变化）' : ''}</Typography.Text></div>
-          {canDeleteLedger && !isDeletedView && selectedRowKeys.length > 0 && (
-            <Button danger icon={<DeleteOutlined />} loading={isDeleting} onClick={() => confirmDelete(selectedRowKeys.map(Number), `确认移入回收站选中的 ${selectedRowKeys.length} 条台账记录？`, '移入后不参与台账列表、统计和所属导入批次行数，管理员可恢复。')}>
-              移入回收站（{selectedRowKeys.length}）
+          <div><Typography.Title level={4}>台账明细</Typography.Title><Typography.Text type="secondary">共 {total.toLocaleString()} 条记录{canViewLedgerStats ? '（统计随筛选变化）' : ''}</Typography.Text></div>
+          {canDeleteLedger && selectedRowKeys.length > 0 && (
+            <Button danger icon={<DeleteOutlined />} loading={isDeleting} onClick={() => confirmDelete(selectedRowKeys.map(Number), `确认删除选中的 ${selectedRowKeys.length} 条台账记录？`, '删除后不参与台账列表、统计和所属导入批次行数。')}>
+              删除（{selectedRowKeys.length}）
             </Button>
           )}
         </div>
         <div className="filter-bar ledger-filter-bar">
           <Space size="middle" wrap>
-            {isAdmin && <Segmented
-              value={viewStatus}
-              options={[{ label: '当前台账', value: 'active' }, { label: '回收站', value: 'deleted' }]}
-              onChange={(value) => {
-                setViewStatus(value as 'active' | 'deleted')
-                setPage(1)
-                setSelectedRowKeys([])
-              }}
-            />}
             <DatePicker.RangePicker
               className="ledger-month-range-picker"
               picker="month"
@@ -488,7 +447,8 @@ export function LedgerPage() {
               value={filterMonthRange}
               onChange={(value) => { setFilterMonthRange(value); setPage(1) }}
             />
-            <Input className="ledger-keyword-input" prefix={<SearchOutlined />} allowClear placeholder="订单号 / 采购订单号" value={filterKeyword} onChange={(event) => { setFilterKeyword(event.target.value); setPage(1) }} />
+            <Input className="ledger-filter-input" prefix={<SearchOutlined />} allowClear placeholder="订单号 / 采购订单号" value={filterKeyword} onChange={(event) => { setFilterKeyword(event.target.value); setPage(1) }} />
+            <Input className="ledger-filter-input" prefix={<SearchOutlined />} allowClear placeholder="SKU" value={filterSku} onChange={(event) => { setFilterSku(event.target.value); setPage(1) }} />
             <Button onClick={resetFilters}>清除筛选</Button>
           </Space>
         </div>

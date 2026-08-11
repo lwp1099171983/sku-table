@@ -25,6 +25,7 @@ const listQuerySchema = z.object({
   startMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
   endMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
   keyword: z.string().trim().max(200).optional(),
+  sku: z.string().trim().max(200).optional(),
   status: z.enum(['active', 'deleted']).default('active'),
 }).refine(
   ({ startMonth, endMonth }) => Boolean(startMonth) === Boolean(endMonth),
@@ -87,6 +88,7 @@ ledgerRoutes.get('/', requireAuth, async (context) => {
     startMonth: result.data.startMonth,
     endMonth: result.data.endMonth,
     keyword: result.data.keyword,
+    sku: result.data.sku,
   }, canViewStats, isDeletedView))
 })
 
