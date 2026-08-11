@@ -3,7 +3,7 @@ import { Alert, App as AntdApp, Button, DatePicker, Empty, Input, InputNumber, M
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { LedgerBatch, LedgerItem, LedgerStats } from '@sku-table/shared'
 import { APP_LABELS } from '../constants/app'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
@@ -54,22 +54,9 @@ function renderAmount(value: string | null) {
 }
 
 function EllipsisCell({ text }: { text: string }) {
-  const elementRef = useRef<HTMLSpanElement>(null)
-  const [isOverflowed, setIsOverflowed] = useState(false)
-
-  useEffect(() => {
-    const element = elementRef.current
-    if (!element) return
-
-    const checkOverflow = () => setIsOverflowed(element.scrollWidth > element.clientWidth)
-    checkOverflow()
-    const observer = new ResizeObserver(checkOverflow)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [text])
-
-  const content = <span ref={elementRef} className="ledger-ellipsis-cell">{text}</span>
-  return isOverflowed ? <Tooltip title={text}>{content}</Tooltip> : content
+  const content = <span className="ledger-ellipsis-cell">{text}</span>
+  // 省略由表格单元格控制，始终绑定 Tooltip，确保截断后的完整值可查看。
+  return text === '—' ? content : <Tooltip title={text}>{content}</Tooltip>
 }
 
 function renderEllipsisText(value: string | null) {
