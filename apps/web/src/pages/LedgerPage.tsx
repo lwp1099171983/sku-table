@@ -275,7 +275,6 @@ export function LedgerPage() {
     base.push(
       // 自动序号：按当前列表顺序全局连续编号（跨分页累计），不受 Excel 原始序号影响
       { title: '序号', key: 'seq', width: 64, render: (_, __, index: number) => (page - 1) * pageSize + index + 1 },
-      { title: '月份', dataIndex: 'month', key: 'month', width: 70, render: renderText },
       { title: '订单日期', dataIndex: 'orderDate', key: 'orderDate', width: 160, render: renderText },
       { title: '订单号', dataIndex: 'orderNo', key: 'orderNo', width: 170, render: renderText },
       { title: 'SKU', dataIndex: 'sku', key: 'sku', width: 170, render: renderText },
@@ -283,9 +282,6 @@ export function LedgerPage() {
       { title: '数量', dataIndex: 'quantity', key: 'quantity', width: 70, align: 'right' as const, render: renderText },
       { title: '单价', dataIndex: 'unitPrice', key: 'unitPrice', width: 90, align: 'right' as const, render: renderAmount },
       { title: '采购金额', dataIndex: 'purchaseAmount', key: 'purchaseAmount', width: 100, align: 'right' as const, render: renderAmount },
-      { title: '采购日期', dataIndex: 'purchaseDate', key: 'purchaseDate', width: 110, render: renderText },
-      { title: '采购平台', dataIndex: 'purchasePlatform', key: 'purchasePlatform', width: 110, render: renderText },
-      { title: '采购订单号', dataIndex: 'purchaseOrderNo', key: 'purchaseOrderNo', width: 170, render: renderText },
       { title: '毛利', dataIndex: 'grossProfit', key: 'grossProfit', width: 90, align: 'right' as const, render: renderAmount },
       { title: '渠道名称', dataIndex: 'channelName', key: 'channelName', width: 200, ellipsis: true, render: renderText },
       {

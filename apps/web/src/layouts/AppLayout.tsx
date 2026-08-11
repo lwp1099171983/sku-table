@@ -1,4 +1,4 @@
-import { CarOutlined, IdcardOutlined, KeyOutlined, LogoutOutlined, MoonOutlined, ScheduleOutlined, ShopOutlined, SunOutlined, TableOutlined, UserAddOutlined, UserOutlined } from '@ant-design/icons'
+import { CarOutlined, IdcardOutlined, KeyOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MoonOutlined, ScheduleOutlined, ShopOutlined, SunOutlined, TableOutlined, UserAddOutlined, UserOutlined } from '@ant-design/icons'
 import { App as AntdApp, Avatar, Button, Dropdown, Form, Input, Layout, Menu, Modal, Select, Space, Tooltip, Typography } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -18,6 +18,7 @@ export function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
+  const [isSiderCollapsed, setIsSiderCollapsed] = useState(false)
   const [changePasswordForm] = Form.useForm<{ oldPassword: string; newPassword: string; confirmPassword: string }>()
   const [isSaving, setIsSaving] = useState(false)
   // 跳过首次挂载（AuthProvider 加载时已拉取过上下文）
@@ -86,7 +87,13 @@ export function AppLayout() {
 
   return (
     <Layout className="app-layout">
-      <Sider breakpoint="lg" collapsedWidth="0" className="app-sider">
+      <Sider
+        breakpoint="lg"
+        collapsedWidth="0"
+        collapsed={isSiderCollapsed}
+        className="app-sider"
+        onBreakpoint={setIsSiderCollapsed}
+      >
         <div className="brand-mark">
           <span className="brand-dot" />
           <span>{APP_LABELS.name}</span>
@@ -101,7 +108,17 @@ export function AppLayout() {
       </Sider>
       <Layout>
         <Header className="app-header">
-          <Typography.Text className="header-context">{headerContext}</Typography.Text>
+          <Space size="small" className="header-page-context">
+            <Tooltip title={isSiderCollapsed ? '展开侧边栏' : '隐藏侧边栏'}>
+              <Button
+                type="text"
+                icon={isSiderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setIsSiderCollapsed((collapsed) => !collapsed)}
+                aria-label={isSiderCollapsed ? '展开侧边栏' : '隐藏侧边栏'}
+              />
+            </Tooltip>
+            <Typography.Text className="header-context">{headerContext}</Typography.Text>
+          </Space>
           <Space size="middle">
             {showShopSwitcher && (
               <Select
