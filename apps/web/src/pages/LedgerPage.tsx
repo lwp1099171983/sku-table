@@ -3,7 +3,7 @@ import { Alert, App as AntdApp, Button, DatePicker, Empty, Input, InputNumber, M
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LedgerBatch, LedgerItem, LedgerStats } from '@sku-table/shared'
 import { APP_LABELS } from '../constants/app'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
@@ -51,6 +51,33 @@ function renderAmount(value: string | null) {
   if (!normalized) return value
   const amount = Number(normalized)
   return Number.isFinite(amount) ? formatAmount(amount) : value
+}
+
+function EllipsisCell({ text }: { text: string }) {
+  const elementRef = useRef<HTMLSpanElement>(null)
+  const [isOverflowed, setIsOverflowed] = useState(false)
+
+  useEffect(() => {
+    const element = elementRef.current
+    if (!element) return
+
+    const checkOverflow = () => setIsOverflowed(element.scrollWidth > element.clientWidth)
+    checkOverflow()
+    const observer = new ResizeObserver(checkOverflow)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [text])
+
+  const content = <span ref={elementRef} className="ledger-ellipsis-cell">{text}</span>
+  return isOverflowed ? <Tooltip title={text}>{content}</Tooltip> : content
+}
+
+function renderEllipsisText(value: string | null) {
+  return <EllipsisCell text={renderText(value)} />
+}
+
+function renderEllipsisAmount(value: string | null) {
+  return <EllipsisCell text={renderAmount(value)} />
 }
 
 function getCurrentYearMonthRange(): MonthRangeValue {
@@ -271,38 +298,40 @@ export function LedgerPage() {
 
   const columns: ColumnsType<LedgerItem> = useMemo(() => {
     const base: ColumnsType<LedgerItem> = []
+    const ellipsis = { showTitle: false }
     if (currentShop === null) {
-      base.push({ title: '店铺', dataIndex: 'shopName', key: 'shopName', width: 120, fixed: 'left' })
+      base.push({ title: '店铺', dataIndex: 'shopName', key: 'shopName', width: 100, fixed: 'left', ellipsis, render: renderEllipsisText })
     }
     base.push(
       // 自动序号：按当前列表顺序全局连续编号（跨分页累计），不受 Excel 原始序号影响
       { title: '序号', key: 'seq', width: 64, render: (_, __, index: number) => (page - 1) * pageSize + index + 1 },
-      { title: '订单日期', dataIndex: 'orderDate', key: 'orderDate', width: 160, render: renderText },
-      { title: '订单号', dataIndex: 'orderNo', key: 'orderNo', width: 170, render: renderText },
-      { title: 'SKU', dataIndex: 'sku', key: 'sku', width: 170, render: renderText },
-      { title: '售价', dataIndex: 'salePrice', key: 'salePrice', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '采购金额', dataIndex: 'purchaseAmount', key: 'purchaseAmount', width: 100, align: 'right' as const, render: renderAmount },
+      { title: '订单日期', dataIndex: 'orderDate', key: 'orderDate', width: 160, ellipsis, render: renderEllipsisText },
+      { title: '订单号', dataIndex: 'orderNo', key: 'orderNo', width: 170, ellipsis, render: renderEllipsisText },
+      { title: 'SKU', dataIndex: 'sku', key: 'sku', width: 85, ellipsis, render: renderEllipsisText },
+      { title: '售价', dataIndex: 'salePrice', key: 'salePrice', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '采购金额', dataIndex: 'purchaseAmount', key: 'purchaseAmount', width: 100, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
       {
         title: '包裹重量',
         dataIndex: 'packageWeight',
         key: 'packageWeight',
         width: canEditLedger ? 166 : 100,
         align: 'right' as const,
+        ellipsis,
         render: (_, record) => canEditLedger
           ? <EditableWeightCell record={record} onSaved={handleWeightSaved} />
-          : renderText(record.packageWeight),
+          : renderEllipsisText(record.packageWeight),
       },
-      { title: '毛利', dataIndex: 'grossProfit', key: 'grossProfit', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '渠道名称', dataIndex: 'channelName', key: 'channelName', width: 200, ellipsis: true, render: renderText },
-      { title: '运费', dataIndex: 'freight', key: 'freight', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '抽点', dataIndex: 'commission', key: 'commission', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '净利', dataIndex: 'netProfit', key: 'netProfit', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '广告22%', dataIndex: 'ad22', key: 'ad22', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '22%净利', dataIndex: 'ad22Net', key: 'ad22Net', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '广告30%', dataIndex: 'ad30', key: 'ad30', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '30%净利', dataIndex: 'ad30Net', key: 'ad30Net', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '尾程', dataIndex: 'tailFee', key: 'tailFee', width: 90, align: 'right' as const, render: renderText },
-      { title: '备注', dataIndex: 'remark', key: 'remark', width: 160, ellipsis: true, render: renderText },
+      { title: '毛利', dataIndex: 'grossProfit', key: 'grossProfit', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '渠道名称', dataIndex: 'channelName', key: 'channelName', width: 160, ellipsis, render: renderEllipsisText },
+      { title: '运费', dataIndex: 'freight', key: 'freight', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '抽点', dataIndex: 'commission', key: 'commission', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '净利', dataIndex: 'netProfit', key: 'netProfit', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '广告22%', dataIndex: 'ad22', key: 'ad22', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '22%净利', dataIndex: 'ad22Net', key: 'ad22Net', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '广告30%', dataIndex: 'ad30', key: 'ad30', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '30%净利', dataIndex: 'ad30Net', key: 'ad30Net', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '尾程', dataIndex: 'tailFee', key: 'tailFee', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisText },
+      { title: '备注', dataIndex: 'remark', key: 'remark', width: 160, ellipsis, render: renderEllipsisText },
     )
     if (canDeleteLedger) {
       base.push({
