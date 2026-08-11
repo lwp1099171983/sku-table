@@ -22,9 +22,9 @@
 
 | 字段 | 当前值 |
 | --- | --- |
-| `SKU_TABLE_HOST` | `1.14.186.143`（腾讯云轻量服务器） |
+| `SKU_TABLE_HOST` | `159.75.175.121`（当前生产服务器） |
 | `SKU_TABLE_SSH_USER` | `root` |
-| `SKU_TABLE_SSH_KEY` | `/Users/nstarlin/Desktop/服务器/sku_table.pem`（腾讯云密钥对） |
+| `SKU_TABLE_SSH_KEY` | `/Users/nstarlin/Desktop/服务器/sku_a_xiong.pem`（当前生产服务器密钥） |
 | `SKU_TABLE_PROJECT_DIR` | `/opt/sku-table` |
 
 发布命令：
@@ -34,6 +34,6 @@
 
 密钥保管约定：
 
-- 私钥 `sku_table.pem` 权限保持 `600`，只放本机，不提交 Git、不传网盘；
+- 私钥 `sku_a_xiong.pem` 权限保持 `600`，只放本机，不提交 Git、不传网盘；
 - 服务器 `state/.env` 含生产凭据，仅 root 可读；
 - 服务器 `current` 为软链，指向当前发布的版本目录。

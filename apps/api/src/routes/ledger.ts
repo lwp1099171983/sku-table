@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import { forbidden, type AuthEnv, requireAuth, requirePermission } from '../modules/auth/auth.middleware.js'
 import { loadAuthContextForShop } from '../modules/auth/auth.service.js'
@@ -39,6 +39,23 @@ const updateWeightSchema = z.object({
   packageWeight: z.number().finite().nonnegative(),
 })
 
+type LogLevel = 'info' | 'warn' | 'error'
+
+function logLedgerImport(
+  context: Context<AuthEnv>,
+  level: LogLevel,
+  details: Record<string, unknown>,
+) {
+  const write = level === 'error' ? console.error : level === 'warn' ? console.warn : console.info
+  write(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    event: 'ledger_import',
+    level,
+    userId: context.get('authUser').id,
+    ...details,
+  }))
+}
+
 export const ledgerRoutes = new Hono<AuthEnv>()
 
 ledgerRoutes.get('/', requireAuth, requirePermission('ledger.read'), async (context) => {
@@ -72,27 +89,72 @@ ledgerRoutes.get('/batches', requireAuth, requirePermission('ledger.read'), asyn
 })
 
 ledgerRoutes.post('/import', requireAuth, requirePermission('ledger.import'), async (context) => {
+  const startedAt = Date.now()
   let formData: FormData
   try {
     formData = await context.req.formData()
   } catch {
+    logLedgerImport(context, 'warn', {
+      result: 'rejected',
+      reason: 'invalid_multipart',
+      durationMs: Date.now() - startedAt,
+    })
     return context.json({ code: 'VALIDATION_ERROR', message: '上传请求格式不正确。' }, 400)
   }
   const file = formData.get('file')
   if (!(file instanceof File)) {
+    logLedgerImport(context, 'warn', {
+      result: 'rejected',
+      reason: 'missing_file',
+      durationMs: Date.now() - startedAt,
+    })
     return context.json({ code: 'VALIDATION_ERROR', message: '请选择 Excel 文件。' }, 400)
   }
+
+  const fileDetails = {
+    fileName: file.name || '未命名文件.xlsx',
+    fileSize: file.size,
+  }
+  logLedgerImport(context, 'info', {
+    result: 'received',
+    ...fileDetails,
+  })
+
   let items
   try {
     items = await parseLedgerFileAsync(file)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Excel 文件无法解析。'
+    logLedgerImport(context, 'warn', {
+      result: 'rejected',
+      reason: 'parse_failed',
+      errorMessage: message,
+      ...fileDetails,
+      durationMs: Date.now() - startedAt,
+    })
     return context.json({ code: 'IMPORT_FILE_INVALID', message }, 400)
   }
 
   if (items.length > 50_000) {
+    logLedgerImport(context, 'warn', {
+      result: 'rejected',
+      reason: 'too_many_rows',
+      parsedRows: items.length,
+      ...fileDetails,
+      durationMs: Date.now() - startedAt,
+    })
     return context.json({ code: 'VALIDATION_ERROR', message: '导入行数超出允许范围（0~50000）。' }, 400)
   }
+
+  const parsedDetails = {
+    parsedRows: items.length,
+    shopCount: new Set(items.map((item) => item.shopName)).size,
+  }
+  logLedgerImport(context, 'info', {
+    result: 'parsed',
+    ...fileDetails,
+    ...parsedDetails,
+  })
 
   const authContext = context.get('authContext')
   try {
@@ -106,11 +168,38 @@ ledgerRoutes.post('/import', requireAuth, requirePermission('ledger.import'), as
       },
       items,
     })
+    logLedgerImport(context, 'info', {
+      result: 'success',
+      ...fileDetails,
+      ...parsedDetails,
+      importedRows,
+      skippedRows,
+      reused,
+      batchIds: batches.map((batch) => batch.id),
+      durationMs: Date.now() - startedAt,
+    })
     return context.json({ batches, importedRows, skippedRows, reused }, reused ? 200 : 201)
   } catch (error) {
     if (error instanceof ShopAccessForbiddenError) {
+      logLedgerImport(context, 'warn', {
+        result: 'rejected',
+        reason: 'shop_forbidden',
+        errorMessage: error.message,
+        ...fileDetails,
+        ...parsedDetails,
+        durationMs: Date.now() - startedAt,
+      })
       return context.json({ code: 'FORBIDDEN', message: error.message }, 403)
     }
+    logLedgerImport(context, 'error', {
+      result: 'failed',
+      reason: 'database_or_internal_error',
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      errorMessage: error instanceof Error ? error.message : '未知错误',
+      ...fileDetails,
+      ...parsedDetails,
+      durationMs: Date.now() - startedAt,
+    })
     throw error
   }
 })
