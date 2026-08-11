@@ -1,6 +1,6 @@
 FROM python:3.12-alpine3.22
 
-RUN apk add --no-cache postgresql16-client \
+RUN apk add --no-cache bash postgresql16-client \
   && pip install --no-cache-dir cos-python-sdk-v5==1.9.44
 
 COPY infra/scripts/backup-to-cos.sh /usr/local/bin/backup-to-cos
