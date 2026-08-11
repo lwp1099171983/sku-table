@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import * as XLSX from 'xlsx'
 import { dedupeLedgerItemsByOrderNo } from './dedupe.js'
-import { parseLedgerFileAsync, type ParsedLedgerItem } from './parser.js'
+import { extractOrderMonth, parseLedgerFileAsync, type ParsedLedgerItem } from './parser.js'
 
 function createItem(orderNo: string | null, shopName = '测试店铺'): ParsedLedgerItem {
   return {
@@ -10,6 +10,7 @@ function createItem(orderNo: string | null, shopName = '测试店铺'): ParsedLe
     seq: null,
     month: '10',
     orderDate: '2025-10-19',
+    orderMonth: '2025-10',
     orderNo,
     sku: null,
     salePrice: '45',
@@ -84,4 +85,16 @@ test('新台账表头 SKU 可以导入', async () => {
 test('旧台账表头“跟踪号”保持兼容', async () => {
   const [item] = await parseRows([...commonHeaders, '跟踪号'], ['测试店铺', 'ORDER-1', '45', '14.9', 'SKU-OLD'])
   assert.equal(item.sku, 'SKU-OLD')
+})
+
+test('订单日期提取年月时兼容横杠、斜杠和中文日期', () => {
+  assert.equal(extractOrderMonth('2026-08-11'), '2026-08')
+  assert.equal(extractOrderMonth('2026/8/11'), '2026-08')
+  assert.equal(extractOrderMonth('2026年8月11日'), '2026-08')
+  assert.equal(extractOrderMonth('2026-13-01'), null)
+})
+
+test('导入时保存订单年月供月份区间筛选使用', async () => {
+  const [item] = await parseRows([...commonHeaders, '订单日期'], ['测试店铺', 'ORDER-1', '45', '14.9', '2026-08-11'])
+  assert.equal(item.orderMonth, '2026-08')
 })

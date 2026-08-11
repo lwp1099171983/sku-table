@@ -41,6 +41,7 @@ export interface ParsedLedgerItem {
   seq: string | null
   month: string | null
   orderDate: string | null
+  orderMonth: string | null
   orderNo: string | null
   sku: string | null
   salePrice: string | null
@@ -66,11 +67,21 @@ export interface ParsedLedgerItem {
 
 // 数值列按原始文本保存（含"超重"等公式错误文本），直接使用 normalizeText，不校验数字
 
-// 从订单日期提取月份（"2025-10-19..." → "10"）
+// 从日期文本提取可筛选的年月，兼容 2026-08、2026/08 和 2026年8月格式
+export function extractOrderMonth(value: string | null) {
+  if (!value) return null
+  const match = value.trim().match(/^(\d{4})[-/年]\s*(\d{1,2})/)
+  if (!match) return null
+
+  const month = Number(match[2])
+  if (month < 1 || month > 12) return null
+  return `${match[1]}-${String(month).padStart(2, '0')}`
+}
+
+// 从订单日期提取显示月份（"2025-10-19..." → "10"）
 function extractMonth(orderDate: string | null) {
-  if (!orderDate) return null
-  const match = orderDate.match(/^\d{4}[-/](\d{1,2})/)
-  return match ? String(Number(match[1])) : null
+  const orderMonth = extractOrderMonth(orderDate)
+  return orderMonth ? String(Number(orderMonth.slice(-2))) : null
 }
 
 function buildHeaderMap(headerRow: unknown[]) {
@@ -147,6 +158,7 @@ function parseSheet(sheet: XLSX.WorkSheet): ParsedLedgerItem[] {
     const monthRaw = normalizeText(getField('month'))
     const orderDate = normalizeText(getField('orderDate'))
     const month = monthRaw ?? extractMonth(orderDate)
+    const orderMonth = extractOrderMonth(orderDate) ?? extractOrderMonth(monthRaw)
 
     items.push({
       shopName,
@@ -154,6 +166,7 @@ function parseSheet(sheet: XLSX.WorkSheet): ParsedLedgerItem[] {
       seq: normalizeText(getField('seq')) ?? String(seqCounter),
       month,
       orderDate,
+      orderMonth,
       orderNo: normalizeText(getField('orderNo')),
       sku: normalizeText(getField('sku')),
       salePrice: normalizeText(getField('salePrice')),

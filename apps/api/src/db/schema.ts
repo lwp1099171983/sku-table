@@ -186,6 +186,7 @@ export const ledgerItems = pgTable('ledger_items', {
   seq: text('seq'),
   month: text('month'),
   orderDate: text('order_date'),
+  orderMonth: text('order_month'),
   orderNo: text('order_no'),
   sku: text('sku'),
   salePrice: text('sale_price'),
@@ -210,6 +211,7 @@ export const ledgerItems = pgTable('ledger_items', {
 }, (table) => [
   index('ledger_items_shop_batch_id_idx').on(table.shopId, table.batchId, table.id),
   index('ledger_items_shop_month_idx').on(table.shopId, table.month),
+  index('ledger_items_order_month_idx').on(table.orderMonth),
   uniqueIndex('ledger_items_order_no_unique').on(table.orderNo).where(sql`${table.orderNo} is not null`),
 ])
 

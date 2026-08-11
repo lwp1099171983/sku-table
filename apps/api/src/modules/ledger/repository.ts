@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { LedgerListQueryDto, LedgerStats, UserRole } from '@sku-table/shared'
 import { Decimal } from 'decimal.js'
@@ -195,6 +195,7 @@ export async function createLedgerImport(input: {
           seq: item.seq,
           month: item.month,
           orderDate: item.orderDate,
+          orderMonth: item.orderMonth,
           orderNo: item.orderNo,
           sku: item.sku,
           salePrice: item.salePrice,
@@ -248,7 +249,8 @@ export async function listLedgerItems(
 ) {
   const filters: SQL[] = []
   if (shopIds) filters.push(inArray(ledgerItems.shopId, shopIds))
-  if (query.month) filters.push(eq(ledgerItems.month, query.month))
+  if (query.startMonth) filters.push(gte(ledgerItems.orderMonth, query.startMonth))
+  if (query.endMonth) filters.push(lte(ledgerItems.orderMonth, query.endMonth))
   if (query.keyword) {
     const keywordClause = or(
       ilike(ledgerItems.orderNo, `%${query.keyword}%`),

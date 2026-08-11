@@ -152,7 +152,8 @@ export interface LedgerListQueryDto {
   page?: number
   pageSize?: number
   shopId?: string
-  month?: string
+  startMonth?: string
+  endMonth?: string
   keyword?: string
 }
 

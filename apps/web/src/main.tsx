@@ -3,10 +3,14 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { App as AntdApp, ConfigProvider, theme as antdTheme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
+import dayjs from 'dayjs'
+import 'dayjs/locale/zh-cn'
 import { App } from './App'
 import { AuthProvider } from './layouts/AuthContext'
 import { ThemeProvider, useTheme } from './layouts/ThemeContext'
 import './styles/global.css'
+
+dayjs.locale('zh-cn')
 
 function ThemedApp() {
   const { mode } = useTheme()

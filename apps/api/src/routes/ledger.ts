@@ -20,9 +20,14 @@ const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(100),
   shopId: z.string().trim().min(1).max(100).optional(),
-  month: z.string().trim().max(20).optional(),
+  startMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
+  endMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
   keyword: z.string().trim().max(200).optional(),
-})
+}).refine(
+  ({ startMonth, endMonth }) => Boolean(startMonth) === Boolean(endMonth),
+).refine(
+  ({ startMonth, endMonth }) => !startMonth || !endMonth || startMonth <= endMonth,
+)
 
 const batchListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -71,7 +76,8 @@ ledgerRoutes.get('/', requireAuth, async (context) => {
   return context.json(await listLedgerItems(scope.shopIds, {
     page: result.data.page,
     pageSize: result.data.pageSize,
-    month: result.data.month,
+    startMonth: result.data.startMonth,
+    endMonth: result.data.endMonth,
     keyword: result.data.keyword,
   }, canViewStats))
 })

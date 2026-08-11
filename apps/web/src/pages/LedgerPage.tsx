@@ -1,7 +1,8 @@
 import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
-import { Alert, App as AntdApp, Button, Empty, Input, InputNumber, Modal, Pagination, Popconfirm, Progress, Space, Table, Tooltip, Typography, Upload } from 'antd'
+import { Alert, App as AntdApp, Button, DatePicker, Empty, Input, InputNumber, Modal, Pagination, Popconfirm, Progress, Space, Table, Tooltip, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
+import dayjs, { type Dayjs } from 'dayjs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { LedgerBatch, LedgerItem, LedgerStats } from '@sku-table/shared'
 import { APP_LABELS } from '../constants/app'
@@ -15,6 +16,7 @@ import './LedgerPage.css'
 const DEFAULT_PAGE_SIZE = 30
 const PAGE_SIZE_OPTIONS = [30, 50, 100]
 const KEYWORD_DEBOUNCE_MS = 300
+type MonthRangeValue = [Dayjs | null, Dayjs | null] | null
 
 const EMPTY_STATS: LedgerStats = {
   purchaseAmount: 0,
@@ -41,6 +43,11 @@ function renderAmount(value: string | null) {
   if (!normalized) return value
   const amount = Number(normalized)
   return Number.isFinite(amount) ? formatAmount(amount) : value
+}
+
+function getCurrentYearMonthRange(): MonthRangeValue {
+  const now = dayjs()
+  return [now.startOf('year'), now.startOf('month')]
 }
 
 function EditableWeightCell({ record, onSaved }: { record: LedgerItem; onSaved: (item: LedgerItem) => Promise<void> }) {
@@ -117,7 +124,7 @@ export function LedgerPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
-  const [filterMonth, setFilterMonth] = useState('')
+  const [filterMonthRange, setFilterMonthRange] = useState<MonthRangeValue>(getCurrentYearMonthRange)
   const [filterKeyword, setFilterKeyword] = useState('')
   const debouncedKeyword = useDebouncedValue(filterKeyword, KEYWORD_DEBOUNCE_MS)
   const [items, setItems] = useState<LedgerItem[]>([])
@@ -142,7 +149,8 @@ export function LedgerPage() {
         page,
         pageSize,
         shopId,
-        month: filterMonth.trim() || undefined,
+        startMonth: filterMonthRange?.[0]?.format('YYYY-MM'),
+        endMonth: filterMonthRange?.[1]?.format('YYYY-MM'),
         keyword: debouncedKeyword.trim() || undefined,
       })
       setItems(result.items)
@@ -153,7 +161,7 @@ export function LedgerPage() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedKeyword, filterMonth, message, page, pageSize, shopId])
+  }, [debouncedKeyword, filterMonthRange, message, page, pageSize, shopId])
 
   const loadBatches = useCallback(async () => {
     setBatchesLoading(true)
@@ -315,7 +323,7 @@ export function LedgerPage() {
   ]
 
   function resetFilters() {
-    setFilterMonth('')
+    setFilterMonthRange(null)
     setFilterKeyword('')
     setPage(1)
   }
@@ -424,7 +432,15 @@ export function LedgerPage() {
         </div>
         <div className="filter-bar ledger-filter-bar">
           <Space size="middle" wrap>
-            <Input className="ledger-month-input" prefix={<SearchOutlined />} allowClear placeholder="月份，如 10" value={filterMonth} onChange={(event) => { setFilterMonth(event.target.value); setPage(1) }} />
+            <DatePicker.RangePicker
+              className="ledger-month-range-picker"
+              picker="month"
+              format="YYYY年M月"
+              placeholder={['开始月份', '结束月份']}
+              allowClear
+              value={filterMonthRange}
+              onChange={(value) => { setFilterMonthRange(value); setPage(1) }}
+            />
             <Input className="ledger-keyword-input" prefix={<SearchOutlined />} allowClear placeholder="订单号 / 采购订单号" value={filterKeyword} onChange={(event) => { setFilterKeyword(event.target.value); setPage(1) }} />
             <Button onClick={resetFilters}>清除筛选</Button>
           </Space>
