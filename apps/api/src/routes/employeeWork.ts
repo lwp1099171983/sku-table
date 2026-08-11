@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { EmployeeWorkListQueryDto } from '@sku-table/shared'
-import { type AuthEnv, requireAuth, requirePermission } from '../modules/auth/auth.middleware.js'
+import { forbidden, type AuthEnv, requireAuth, requirePermission } from '../modules/auth/auth.middleware.js'
+import { loadAuthContextForShop } from '../modules/auth/auth.service.js'
 import { parseEmployeeWorkFileAsync } from '../modules/employee-work/parser.js'
 import {
   createEmployeeWorkImport,
@@ -95,23 +96,40 @@ employeeWorkRoutes.get('/employees', requireAuth, async (context) => {
   return context.json({ items: await listEmployeeNames(scope.shopIds) })
 })
 
-employeeWorkRoutes.post('/import', requireAuth, requirePermission('employee_work.import'), async (context) => {
+employeeWorkRoutes.post('/import', requireAuth, async (context) => {
   let formData: FormData
   try {
     formData = await context.req.formData()
   } catch {
     return context.json({ code: 'VALIDATION_ERROR', message: '上传请求格式不正确。' }, 400)
   }
-  const employeeName = String(formData.get('employeeName') ?? '').trim()
+  const requestedEmployeeName = String(formData.get('employeeName') ?? '').trim()
   const workDate = String(formData.get('workDate') ?? '').trim()
   const shopId = String(formData.get('shopId') ?? '').trim()
   const file = formData.get('file')
 
-  if (employeeName.length < 1 || employeeName.length > 100 || !dateSchema.safeParse(workDate).success || !isValidDate(workDate)) {
-    return context.json({ code: 'VALIDATION_ERROR', message: '员工姓名或工作日期不正确。' }, 400)
+  if (!dateSchema.safeParse(workDate).success || !isValidDate(workDate)) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '工作日期不正确。' }, 400)
   }
   if (!(file instanceof File)) {
     return context.json({ code: 'VALIDATION_ERROR', message: '请选择 Excel 文件。' }, 400)
+  }
+
+  if (!shopId) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '请先选择具体店铺再导入员工工作数据。' }, 400)
+  }
+  const shopContext = await loadAuthContextForShop(context.get('authUser').id, shopId)
+  if (!shopContext?.permissions.includes('employee_work.import')) {
+    return forbidden(context, '当前账号没有向该店铺导入员工工作数据的权限。')
+  }
+  const isCustomerSelfImport = shopContext.roles.includes('customer')
+    && !shopContext.roles.includes('leader')
+    && !shopContext.roles.includes('admin')
+  const employeeName = isCustomerSelfImport
+    ? (shopContext.user.displayName?.trim() || shopContext.user.email)
+    : requestedEmployeeName
+  if (employeeName.length < 1 || employeeName.length > 100) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '员工姓名不正确。' }, 400)
   }
 
   let items
@@ -125,13 +143,6 @@ employeeWorkRoutes.post('/import', requireAuth, requirePermission('employee_work
   // 防御性校验：行数须在 0~50000（length 恒非负，仅需兜底上限）
   if (items.length > 50_000) {
     return context.json({ code: 'VALIDATION_ERROR', message: '导入行数超出允许范围（0~50000）。' }, 400)
-  }
-
-  // shopId 必须属于当前用户可访问店铺；员工工作 Excel 没有店铺列，导入必须归属具体店铺
-  const authContext = context.get('authContext')
-  const accessibleIds = authContext.shops.map((shop) => shop.id)
-  if (!shopId || !accessibleIds.includes(shopId)) {
-    return context.json({ code: 'VALIDATION_ERROR', message: '请先选择具体店铺再导入员工工作数据。' }, 400)
   }
 
   const { batch, importedRows, skippedRows, reused } = await createEmployeeWorkImport({

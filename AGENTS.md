@@ -57,7 +57,7 @@
 │       │   │   └── shops/          # 店铺与成员管理
 │       │   ├── middleware/         # 错误处理、认证等通用中间件
 │       │   ├── config/             # 环境变量和运行时配置
-│       │   └── db/                 # client、schema、migrate、seed、migrations（含 RBAC 目录数据迁移）
+│       │   └── db/                 # client、schema、migrate、seed、migrations（含 RBAC 目录与客服导入权限迁移）
 │       ├── package.json
 │       └── Dockerfile
 ├── packages/

@@ -21,10 +21,10 @@ export const PERMISSION_CATALOG: ReadonlyArray<{ code: PermissionCode; name: str
 export const ROLE_CATALOG: ReadonlyArray<{ code: UserRole; name: string; description: string }> = [
   { code: 'admin', name: '管理员', description: '全局账号，拥有全部权限，可查看全部店铺。' },
   { code: 'leader', name: '组长', description: '按店铺授权，可查看和导入员工工作与台账明细，不含台账统计。' },
-  { code: 'customer', name: '客服', description: '按店铺授权，只能查看员工工作记录。' },
+  { code: 'customer', name: '客服', description: '按店铺授权，可查看和导入员工工作记录。' },
 ]
 
-// 角色-权限矩阵（admin 拥有全部，delete 权限不预置给任何角色）
+// 角色-权限矩阵（admin 拥有全部，编辑/删除权限通过用户级配置开通）
 export const ROLE_PERMISSIONS: Record<UserRole, readonly PermissionCode[]> = {
   admin: PERMISSION_CATALOG.map((permission) => permission.code),
   leader: [
@@ -35,6 +35,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly PermissionCode[]> = {
   ],
   customer: [
     'employee_work.read',
+    'employee_work.import',
   ],
 }
 

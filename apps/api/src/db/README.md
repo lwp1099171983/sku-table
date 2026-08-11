@@ -32,6 +32,7 @@
 - `0004_ledger_text_and_tracking.sql`：台账改 text 保存原始值并补充跟踪号；
 - `0007_ledger_stats_permission.sql`：增加台账统计查看权限，仅预置给管理员；
 - `0008_ledger_sku_order_unique_and_edit.sql`：跟踪号迁移为 SKU、清理历史重复订单、建立全局订单号唯一索引、增加台账编辑权限；
+- `0009_customer_employee_work_import.sql`：客服角色增加员工工作导入权限，启用成员可向所属店铺导入；
 - 生产环境执行前必须保留 `pg_dump` 备份，不得直接覆盖已有数据。
 
 ## Seed

@@ -15,6 +15,21 @@ import './EmployeeWorkPage.css'
 const DEFAULT_PAGE_SIZE = 30
 const PAGE_SIZE_OPTIONS = [30, 50, 100]
 const SKU_DEBOUNCE_MS = 300
+const MAX_IMPORT_FILES = 20
+
+interface SelectedImportFile {
+  uid: string
+  file: File
+}
+
+interface EmployeeImportSummary {
+  totalFiles: number
+  successfulFiles: number
+  failedFiles: string[]
+  importedRows: number
+  skippedRows: number
+  reusedFiles: number
+}
 
 function today() {
   const date = new Date()
@@ -24,14 +39,14 @@ function today() {
 }
 
 export function EmployeeWorkPage() {
-  const { canImportEmployeeWork, canDeleteEmployeeWork, currentShop, hasPermission } = useAuth()
+  const { canImportEmployeeWork, canDeleteEmployeeWork, currentShop, hasPermission, isAdmin, roles, user } = useAuth()
   const { message } = AntdApp.useApp()
   const [employeeName, setEmployeeName] = useState('')
   const [workDate, setWorkDate] = useState(today)
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<SelectedImportFile[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
-  const [lastBatch, setLastBatch] = useState<EmployeeWorkBatch | null>(null)
+  const [importSummary, setImportSummary] = useState<EmployeeImportSummary | null>(null)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [employeeOptions, setEmployeeOptions] = useState<string[]>([])
   const [filterEmployee, setFilterEmployee] = useState<string>()
@@ -52,6 +67,10 @@ export function EmployeeWorkPage() {
   const [isRollingBack, setIsRollingBack] = useState(false)
 
   const shopId = currentShop?.id ?? null
+  const isCustomerSelfImport = roles.includes('customer') && !roles.includes('leader') && !isAdmin
+  const importEmployeeName = isCustomerSelfImport
+    ? (user?.displayName?.trim() || user?.email || '')
+    : employeeName.trim()
 
   const loadEmployees = useCallback(async () => {
     try {
@@ -107,18 +126,26 @@ export function EmployeeWorkPage() {
 
   const uploadProps: UploadProps = {
     accept: '.xlsx,.xls',
-    maxCount: 1,
+    multiple: true,
+    maxCount: MAX_IMPORT_FILES,
     beforeUpload: (selectedFile) => {
-      setFile(selectedFile)
-      setLastBatch(null)
+      setFiles((current) => {
+        if (current.length >= MAX_IMPORT_FILES) {
+          message.warning(`一次最多选择 ${MAX_IMPORT_FILES} 个 Excel 文件。`)
+          return current
+        }
+        return [...current, { uid: selectedFile.uid, file: selectedFile }]
+      })
+      setImportSummary(null)
       setUploadProgress(0)
       return false
     },
-    onRemove: () => {
-      setFile(null)
-      setLastBatch(null)
+    onRemove: (selectedFile) => {
+      setFiles((current) => current.filter((item) => item.uid !== selectedFile.uid))
+      setImportSummary(null)
+      setUploadProgress(0)
     },
-    fileList: file ? [{ uid: '-1', name: file.name, status: 'done' } as UploadFile] : [],
+    fileList: files.map(({ uid, file }) => ({ uid, name: file.name, status: 'done' }) as UploadFile),
   }
 
   async function handleUpload() {
@@ -126,7 +153,7 @@ export function EmployeeWorkPage() {
       message.error('请先在顶部选择具体店铺，再导入员工数据。')
       return
     }
-    if (!employeeName.trim()) {
+    if (!importEmployeeName) {
       message.error('请输入员工姓名。')
       return
     }
@@ -134,42 +161,82 @@ export function EmployeeWorkPage() {
       message.error('请选择工作日期。')
       return
     }
-    if (!file) {
-      message.error('请选择 Excel 文件。')
+    if (files.length === 0) {
+      message.error('请至少选择一个 Excel 文件。')
       return
     }
 
     setIsUploading(true)
-    setLastBatch(null)
-    try {
-      const result = await employeeWorkService.importFile({
-        shopId,
-        employeeName: employeeName.trim(),
-        workDate,
-        file,
-        onProgress: setUploadProgress,
-      })
-      setLastBatch(result.batch)
-      setEmployeeOptions((current) => current.includes(employeeName.trim()) ? current : [...current, employeeName.trim()].sort())
-      if (result.reused) {
-        message.info('该文件此前已处理过，本次未新增数据。')
-      } else if (result.skippedRows > 0) {
-        message.warning(`已导入 ${result.importedRows.toLocaleString()} 行，跳过 ${result.skippedRows.toLocaleString()} 行重复货号。`)
-      } else {
-        message.success(`已导入 ${result.importedRows.toLocaleString()} 行员工工作数据。`)
+    setImportSummary(null)
+    const selectedFiles = [...files]
+    let successfulFiles = 0
+    let importedRows = 0
+    let skippedRows = 0
+    let reusedFiles = 0
+    const failedFiles: string[] = []
+
+    for (let index = 0; index < selectedFiles.length; index += 1) {
+      const selectedFile = selectedFiles[index]
+      try {
+        const result = await employeeWorkService.importFile({
+          shopId,
+          employeeName: importEmployeeName,
+          workDate,
+          file: selectedFile.file,
+          onProgress: (progress) => {
+            setUploadProgress(Math.round(((index + progress / 100) / selectedFiles.length) * 100))
+          },
+        })
+        successfulFiles += 1
+        importedRows += result.importedRows
+        skippedRows += result.skippedRows
+        if (result.reused) reusedFiles += 1
+      } catch (error) {
+        const apiMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message
+        failedFiles.push(`${selectedFile.file.name}：${apiMessage || '文件格式或内容不正确'}`)
+      } finally {
+        setUploadProgress(Math.round(((index + 1) / selectedFiles.length) * 100))
       }
-      setPage(1)
-      await loadItems()
-    } catch (error) {
-      const apiMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message
-      const errorMessage = apiMessage || '导入失败，请检查文件格式后重试。'
-      message.error(errorMessage)
+    }
+
+    const summary: EmployeeImportSummary = {
+      totalFiles: selectedFiles.length,
+      successfulFiles,
+      failedFiles,
+      importedRows,
+      skippedRows,
+      reusedFiles,
+    }
+    setImportSummary(summary)
+
+    try {
+      if (successfulFiles > 0) {
+        setEmployeeOptions((current) => current.includes(importEmployeeName) ? current : [...current, importEmployeeName].sort())
+        setPage(1)
+        await loadItems()
+      }
+
+      if (failedFiles.length === selectedFiles.length) {
+        message.error(`共 ${selectedFiles.length} 个文件，全部导入失败。`)
+      } else if (failedFiles.length > 0) {
+        message.warning(`已处理 ${successfulFiles}/${selectedFiles.length} 个文件，${failedFiles.length} 个失败。`)
+      } else if (reusedFiles === selectedFiles.length) {
+        message.info('所选文件此前均已处理，本次未新增数据。')
+      } else if (skippedRows > 0) {
+        message.warning(`已导入 ${importedRows.toLocaleString()} 行，跳过 ${skippedRows.toLocaleString()} 行重复货号。`)
+      } else {
+        message.success(`已从 ${successfulFiles} 个文件导入 ${importedRows.toLocaleString()} 行员工工作数据。`)
+      }
     } finally {
       setIsUploading(false)
     }
   }
 
   function openImportModal() {
+    if (!currentShop) {
+      message.warning('当前为全部店铺，请先在顶部选择一个具体店铺，再导入员工数据。')
+      return
+    }
     setIsImportModalOpen(true)
     void loadEmployees()
   }
@@ -179,9 +246,9 @@ export function EmployeeWorkPage() {
     setIsImportModalOpen(false)
     setEmployeeName('')
     setWorkDate(today())
-    setFile(null)
+    setFiles([])
     setUploadProgress(0)
-    setLastBatch(null)
+    setImportSummary(null)
   }
 
   async function handleRollback(batch: EmployeeWorkBatch) {
@@ -318,32 +385,46 @@ export function EmployeeWorkPage() {
         keyboard={!isUploading}
         onCancel={closeImportModal}
       >
-        <Typography.Paragraph type="secondary">上传的 Excel 只需要包含 7 个商品字段，员工姓名和工作日期在这里填写，数据归属当前店铺{currentShop ? `（${currentShop.name}）` : ''}。</Typography.Paragraph>
-        <Alert type="info" showIcon message="支持 .xlsx / .xls；表头为：序号、货号、采集平台、采集商品名称、采集商品链接、采集规格、采集价格(CNY)；同一店铺的重复货号会自动跳过；单批最多 5 万行。" />
+        <Typography.Paragraph type="secondary">可同时上传多个 Excel，数据归属当前店铺{currentShop ? `（${currentShop.name}）` : ''}。</Typography.Paragraph>
+        <Alert type="info" showIcon message={`支持 .xlsx / .xls，一次最多 ${MAX_IMPORT_FILES} 个文件；每个文件单独生成导入批次，单文件最多 5 万行；同一店铺的重复货号会自动跳过。`} />
         <div className="work-import-grid">
-          <label className="field-label">员工姓名<AutoComplete
-            value={employeeName}
-            options={employeeOptions.map((name) => ({ value: name, label: name }))}
-            maxLength={100}
-            allowClear
-            showSearch
-            className="employee-name-autocomplete"
-            placeholder="选择已有员工或输入新姓名"
-            filterOption={(inputValue, option) => String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())}
-            onChange={setEmployeeName}
-          /></label>
+          <label className="field-label">员工姓名{isCustomerSelfImport
+            ? <Input value={importEmployeeName} disabled />
+            : <AutoComplete
+              value={employeeName}
+              options={employeeOptions.map((name) => ({ value: name, label: name }))}
+              maxLength={100}
+              allowClear
+              showSearch
+              className="employee-name-autocomplete"
+              placeholder="选择已有员工或输入新姓名"
+              filterOption={(inputValue, option) => String(option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())}
+              onChange={setEmployeeName}
+            />}</label>
           <label className="field-label">工作日期<Input type="date" value={workDate} onChange={(event) => setWorkDate(event.target.value)} /></label>
         </div>
         <Upload.Dragger {...uploadProps} disabled={isUploading}>
           <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-          <p className="ant-upload-text">点击或拖拽员工 Excel 到这里</p>
-          <p className="ant-upload-hint">文件名会记录到导入批次中</p>
+          <p className="ant-upload-text">点击或拖拽多个员工 Excel 到这里</p>
+          <p className="ant-upload-hint">已选 {files.length}/{MAX_IMPORT_FILES} 个文件，每个文件名都会记录到导入批次中</p>
         </Upload.Dragger>
-        {!lastBatch && <div className="import-submit-block">
-          <Button type="primary" icon={<UploadOutlined />} loading={isUploading} onClick={() => void handleUpload()} className="import-submit">开始导入</Button>
+        {!importSummary && <div className="import-submit-block">
+          <Button type="primary" icon={<UploadOutlined />} loading={isUploading} onClick={() => void handleUpload()} className="import-submit">开始导入（{files.length} 个文件）</Button>
         </div>}
-        {isUploading && <div className="progress-block"><Typography.Text>正在上传和写入数据...</Typography.Text><Progress percent={uploadProgress} status="active" /></div>}
-        {lastBatch && <Alert className="import-result" type="success" showIcon message="导入完成" description={`店铺：${lastBatch.shopName}；员工：${lastBatch.employeeName}；工作日期：${lastBatch.workDate}；共 ${lastBatch.totalRows.toLocaleString()} 行。`} />}
+        {isUploading && <div className="progress-block"><Typography.Text>正在逐个上传和写入文件...</Typography.Text><Progress percent={uploadProgress} status="active" /></div>}
+        {importSummary && <Alert
+          className="import-result"
+          type={importSummary.failedFiles.length === importSummary.totalFiles ? 'error' : importSummary.failedFiles.length > 0 ? 'warning' : 'success'}
+          showIcon
+          message={`处理完成：成功 ${importSummary.successfulFiles}/${importSummary.totalFiles} 个文件`}
+          description={(
+            <Space direction="vertical" size={2}>
+              <span>新增 {importSummary.importedRows.toLocaleString()} 行，跳过 {importSummary.skippedRows.toLocaleString()} 行，重复文件 {importSummary.reusedFiles} 个。</span>
+              {importSummary.failedFiles.slice(0, 3).map((failure, index) => <span key={`${index}-${failure}`}>{failure}</span>)}
+              {importSummary.failedFiles.length > 3 && <span>另有 {importSummary.failedFiles.length - 3} 个文件失败，请查看提示后重试。</span>}
+            </Space>
+          )}
+        />}
       </Modal>}
 
       <Modal
