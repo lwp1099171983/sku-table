@@ -356,7 +356,7 @@ export function LedgerPage() {
   ]
 
   function resetFilters() {
-    setFilterMonthRange(null)
+    setFilterMonthRange(getCurrentYearMonthRange())
     setFilterKeyword('')
     setFilterSku('')
     setFilterNetProfitLoss('all')
