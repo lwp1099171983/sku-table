@@ -5,9 +5,10 @@ import { Decimal } from 'decimal.js'
 import { db } from '../../db/client.js'
 import { ledgerBatches, ledgerItems, shopMemberRoles, shopMembers, shops } from '../../db/schema.js'
 import { hashLedgerItems } from '../imports/idempotency.js'
-import { calculateLedgerStats, calculateLedgerValues, parseLedgerAmount, roundLedgerMoney } from './calculation.js'
+import { calculateLedgerGrossProfit, calculateLedgerProfitValues, calculateLedgerStats, calculateLedgerValues, parseLedgerAmount, roundLedgerMoney } from './calculation.js'
 import { dedupeLedgerItemsByOrderNo } from './dedupe.js'
 import type { ParsedLedgerItem } from './parser.js'
+import { calculateTailFeeAmount, normalizeTailFeeRate } from './tailFee.js'
 
 const INSERT_CHUNK_SIZE = 1_000
 
@@ -40,7 +41,7 @@ const ledgerItemSelection = {
   ad22Net: ledgerItems.ad22Net,
   ad30: ledgerItems.ad30,
   ad30Net: ledgerItems.ad30Net,
-  compensation: ledgerItems.compensation,
+  tailFee: ledgerItems.tailFee,
   remark: ledgerItems.remark,
 }
 
@@ -49,6 +50,32 @@ export class ShopAccessForbiddenError extends Error {
   constructor(shopName: string) {
     super(`无权向店铺「${shopName}」导入台账数据。`)
     this.name = 'ShopAccessForbiddenError'
+  }
+}
+
+function prepareImportedLedgerItem(item: ParsedLedgerItem): ParsedLedgerItem {
+  const tailFee = normalizeTailFeeRate(item.tailFee)
+  let grossProfit = item.grossProfit
+  try {
+    grossProfit = calculateLedgerGrossProfit({
+      salePrice: item.salePrice,
+      purchaseAmount: item.purchaseAmount,
+      tailFee,
+    }).grossProfit
+  } catch {
+    // 保留缺少售价或采购金额的原始公式值
+  }
+  try {
+    const calculated = calculateLedgerProfitValues({
+      salePrice: item.salePrice,
+      purchaseAmount: item.purchaseAmount,
+      freight: item.freight,
+      commission: item.commission,
+      tailFee,
+    })
+    return { ...item, tailFee, ...calculated }
+  } catch {
+    return { ...item, tailFee, grossProfit }
   }
 }
 
@@ -134,7 +161,7 @@ export async function createLedgerImport(input: {
   importer: { id: string; isAdmin: boolean; roles: UserRole[] }
   items: ParsedLedgerItem[]
 }) {
-  const deduped = dedupeLedgerItemsByOrderNo(input.items)
+  const deduped = dedupeLedgerItemsByOrderNo(input.items.map(prepareImportedLedgerItem))
 
   // 按店铺分组
   const byShop = new Map<string, ParsedLedgerItem[]>()
@@ -215,7 +242,7 @@ export async function createLedgerImport(input: {
           ad22Net: item.ad22Net,
           ad30: item.ad30,
           ad30Net: item.ad30Net,
-          compensation: item.compensation,
+          tailFee: item.tailFee,
           remark: item.remark,
         }))).onConflictDoNothing().returning({ id: ledgerItems.id })
         importedForShop += inserted.length
@@ -272,6 +299,7 @@ export async function listLedgerItems(
       revenue: ledgerItems.salePrice,
       freight: ledgerItems.freight,
       commission: ledgerItems.commission,
+      tailFee: ledgerItems.tailFee,
     })
       .from(ledgerItems)
       .where(where)
@@ -280,6 +308,7 @@ export async function listLedgerItems(
       revenue: new Decimal(0),
       freight: new Decimal(0),
       commission: new Decimal(0),
+      tailFee: new Decimal(0),
     }
     const addAmount = (total: Decimal, value: string | null) => {
       const amount = parseLedgerAmount(value)
@@ -290,6 +319,8 @@ export async function listLedgerItems(
       sums.revenue = addAmount(sums.revenue, row.revenue)
       sums.freight = addAmount(sums.freight, row.freight)
       sums.commission = addAmount(sums.commission, row.commission)
+      const revenue = parseLedgerAmount(row.revenue)
+      if (revenue) sums.tailFee = sums.tailFee.plus(calculateTailFeeAmount(revenue, row.tailFee))
     }
     stats = calculateLedgerStats(sums)
   }
@@ -333,6 +364,7 @@ export async function updateLedgerItemWeight(id: number, packageWeight: number) 
       purchaseAmount: item.purchaseAmount,
       channelName: item.channelName,
       packageWeight,
+      tailFee: item.tailFee,
     })
 
     const [updated] = await tx.update(ledgerItems)

@@ -56,7 +56,7 @@
 │       │   │   ├── ledger/         # 台账（订单号去重、SKU、导入/列表/统计/重量编辑/删除/批次追溯/资费计算）
 │       │   │   └── shops/          # 店铺与成员管理
 │       │   ├── middleware/         # 错误处理、认证等通用中间件
-│       │   ├── config/             # 环境变量和运行时配置
+│       │   ├── config/             # 环境变量、运行时和固定汇率配置
 │       │   └── db/                 # client、schema、migrate、seed、migrations（含 RBAC 目录与客服导入权限迁移）
 │       ├── package.json
 │       └── Dockerfile

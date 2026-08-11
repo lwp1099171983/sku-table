@@ -284,7 +284,7 @@ export function LedgerPage() {
       { title: '22%净利', dataIndex: 'ad22Net', key: 'ad22Net', width: 90, align: 'right' as const, render: renderAmount },
       { title: '广告30%', dataIndex: 'ad30', key: 'ad30', width: 90, align: 'right' as const, render: renderAmount },
       { title: '30%净利', dataIndex: 'ad30Net', key: 'ad30Net', width: 90, align: 'right' as const, render: renderAmount },
-      { title: '赔偿', dataIndex: 'compensation', key: 'compensation', width: 90, align: 'right' as const, render: renderAmount },
+      { title: '尾程', dataIndex: 'tailFee', key: 'tailFee', width: 90, align: 'right' as const, render: renderText },
       { title: '备注', dataIndex: 'remark', key: 'remark', width: 160, ellipsis: true, render: renderText },
     )
     if (canDeleteLedger) {

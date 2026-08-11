@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import { assertExcelFile, MAX_ROWS, normalizeHeader, normalizeText } from '../imports/xlsx.js'
+import { normalizeTailFeeRate } from './tailFee.js'
 
 // 25 个字段的表头别名映射（normalizeHeader 后的 key）
 const headerAliases: Record<string, keyof ParsedLedgerItem> = {
@@ -29,7 +30,8 @@ const headerAliases: Record<string, keyof ParsedLedgerItem> = {
   '22%净利': 'ad22Net',
   '广告30%': 'ad30',
   '30%净利': 'ad30Net',
-  '赔偿': 'compensation',
+  '尾程': 'tailFee',
+  '赔偿': 'tailFee', // 兼容旧版台账文件
   '备注': 'remark',
 }
 
@@ -61,7 +63,7 @@ export interface ParsedLedgerItem {
   ad22Net: string | null
   ad30: string | null
   ad30Net: string | null
-  compensation: string | null
+  tailFee: string | null
   remark: string | null
 }
 
@@ -186,7 +188,7 @@ function parseSheet(sheet: XLSX.WorkSheet): ParsedLedgerItem[] {
       ad22Net: normalizeText(getField('ad22Net')),
       ad30: normalizeText(getField('ad30')),
       ad30Net: normalizeText(getField('ad30Net')),
-      compensation: normalizeText(getField('compensation')),
+      tailFee: normalizeTailFeeRate(normalizeText(getField('tailFee'))),
       remark: normalizeText(getField('remark')),
     })
 

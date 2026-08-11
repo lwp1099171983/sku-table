@@ -39,7 +39,7 @@ export function hashLedgerItems(items: ParsedLedgerItem[]): string {
       item.ad22Net,
       item.ad30,
       item.ad30Net,
-      item.compensation,
+      item.tailFee,
       item.remark,
     ])
   }

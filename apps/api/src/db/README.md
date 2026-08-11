@@ -18,7 +18,7 @@
 
 - `employees`：员工实体（按店铺维护，导入时幂等 upsert）；
 - `employee_work_batches` / `employee_work_items`：员工工作文件批次与明细；
-- `ledger_batches` / `ledger_items`：台账批次与明细（25 个业务字段全部 `text` 保存原始值，重量在线编辑时重算公式列）。
+- `ledger_batches` / `ledger_items`：台账批次与明细（25 个业务字段全部 `text` 保存原始值；尾程比例为空时默认 `2%`，重量在线编辑时重算公式列）。
 
 规则：所有业务根表带 `shop_id NOT NULL`；子表用 `(batch_id, shop_id)` 组合外键防止跨店铺关联；批次行数限制 `0~50000`；员工工作批次预留 `archived_at`/`archived_by` 归档字段（管理员回滚时写入，默认查询排除已归档数据），台账批次无归档字段；员工工作金额非负；台账金额可正可负（毛利/净利允许为负）；统一 `updated_at` 触发器。
 
@@ -34,6 +34,7 @@
 - `0008_ledger_sku_order_unique_and_edit.sql`：跟踪号迁移为 SKU、清理历史重复订单、建立全局订单号唯一索引、增加台账编辑权限；
 - `0009_customer_employee_work_import.sql`：客服角色增加员工工作导入权限，启用成员可向所属店铺导入；
 - `0010_ledger_order_month_range.sql`：增加并回填订单年月，支持台账月份区间筛选；
+- `0011_ledger_tail_fee.sql`：赔偿迁移为尾程，统一默认 `2%` 并回算历史利润；
 - 生产环境执行前必须保留 `pg_dump` 备份，不得直接覆盖已有数据。
 
 ## Seed

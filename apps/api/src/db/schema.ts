@@ -206,7 +206,7 @@ export const ledgerItems = pgTable('ledger_items', {
   ad22Net: text('ad22_net'),
   ad30: text('ad30'),
   ad30Net: text('ad30_net'),
-  compensation: text('compensation'),
+  tailFee: text('tail_fee'),
   remark: text('remark'),
 }, (table) => [
   index('ledger_items_shop_batch_id_idx').on(table.shopId, table.batchId, table.id),

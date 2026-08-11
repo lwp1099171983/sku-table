@@ -30,7 +30,7 @@ function createItem(orderNo: string | null, shopName = '测试店铺'): ParsedLe
     ad22Net: '6.55',
     ad30: '13.5',
     ad30Net: '2.95',
-    compensation: null,
+    tailFee: '2%',
     remark: null,
   }
 }
@@ -97,4 +97,9 @@ test('订单日期提取年月时兼容横杠、斜杠和中文日期', () => {
 test('导入时保存订单年月供月份区间筛选使用', async () => {
   const [item] = await parseRows([...commonHeaders, '订单日期'], ['测试店铺', 'ORDER-1', '45', '14.9', '2026-08-11'])
   assert.equal(item.orderMonth, '2026-08')
+})
+
+test('尾程为空时默认按 2% 导入，并兼容旧表头“赔偿”', async () => {
+  const [item] = await parseRows([...commonHeaders, '赔偿'], ['测试店铺', 'ORDER-1', '45', '14.9', ''])
+  assert.equal(item.tailFee, '2%')
 })

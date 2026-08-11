@@ -108,7 +108,7 @@ export interface LedgerItem {
   ad22Net: string | null
   ad30: string | null
   ad30Net: string | null
-  compensation: string | null
+  tailFee: string | null
   remark: string | null
 }
 
