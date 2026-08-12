@@ -1,4 +1,4 @@
-import type { LedgerBatch, LedgerImportResponseDto, LedgerListResponseDto, PageResult, UpdateLedgerWeightResponseDto } from '@sku-table/shared'
+import type { LedgerBatch, LedgerImportResponseDto, LedgerListResponseDto, PageResult, UpdateLedgerPurchaseAmountResponseDto, UpdateLedgerWeightResponseDto } from '@sku-table/shared'
 import apiClient from './apiClient'
 
 export const ledgerService = {
@@ -51,6 +51,11 @@ export const ledgerService = {
 
   async updateWeight(id: number, packageWeight: number): Promise<UpdateLedgerWeightResponseDto> {
     const { data } = await apiClient.patch<UpdateLedgerWeightResponseDto>(`/ledger/items/${id}/weight`, { packageWeight })
+    return data
+  },
+
+  async updatePurchaseAmount(id: number, purchaseAmount: string): Promise<UpdateLedgerPurchaseAmountResponseDto> {
+    const { data } = await apiClient.patch<UpdateLedgerPurchaseAmountResponseDto>(`/ledger/items/${id}/purchase-amount`, { purchaseAmount })
     return data
   },
 }

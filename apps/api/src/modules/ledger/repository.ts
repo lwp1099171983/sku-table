@@ -5,7 +5,7 @@ import { Decimal } from 'decimal.js'
 import { db } from '../../db/client.js'
 import { ledgerBatches, ledgerItems, shopMemberRoles, shopMembers, shops } from '../../db/schema.js'
 import { hashLedgerItems } from '../imports/idempotency.js'
-import { calculateLedgerGrossProfit, calculateLedgerProfitValues, calculateLedgerStats, calculateLedgerValues, LedgerCalculationError, parseLedgerAmount, roundLedgerMoney } from './calculation.js'
+import { calculateLedgerGrossProfit, calculateLedgerProfitValues, calculateLedgerPurchaseAmountValues, calculateLedgerStats, calculateLedgerValues, LedgerCalculationError, parseLedgerAmount, roundLedgerMoney } from './calculation.js'
 import { dedupeLedgerItemsByOrderNo } from './dedupe.js'
 import type { ParsedLedgerItem } from './parser.js'
 import { calculateTailFeeAmount, normalizeTailFeeRate } from './tailFee.js'
@@ -422,6 +422,35 @@ export async function updateLedgerItemWeight(id: number, packageWeight: number) 
       ...calculated,
       shippingRateVersionId: rate.versionId,
     })
+  })
+}
+
+export async function updateLedgerItemPurchaseAmount(id: number, purchaseAmount: string) {
+  return db.transaction(async (tx) => {
+    const [item] = await tx.select(ledgerItemSelection)
+      .from(ledgerItems)
+      .innerJoin(shops, eq(ledgerItems.shopId, shops.id))
+      .where(and(eq(ledgerItems.id, id), isNull(ledgerItems.deletedAt)))
+      .limit(1)
+    if (!item) return null
+
+    const calculated = calculateLedgerPurchaseAmountValues({
+      salePrice: item.salePrice,
+      purchaseAmount,
+      freight: item.freight,
+      commission: item.commission,
+      ad22: item.ad22,
+      ad30: item.ad30,
+      tailFee: item.tailFee,
+    })
+
+    const [updated] = await tx.update(ledgerItems)
+      .set(calculated)
+      .where(and(eq(ledgerItems.id, id), isNull(ledgerItems.deletedAt)))
+      .returning({ id: ledgerItems.id })
+    if (!updated) return null
+
+    return toPublicLedgerItem({ ...item, ...calculated })
   })
 }
 

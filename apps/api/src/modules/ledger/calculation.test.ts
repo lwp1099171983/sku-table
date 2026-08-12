@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { calculateLedgerStats, calculateLedgerValues, LedgerCalculationError } from './calculation.js'
+import { calculateLedgerPurchaseAmountValues, calculateLedgerStats, calculateLedgerValues, LedgerCalculationError, normalizeEditablePurchaseAmount } from './calculation.js'
 import { calculateTailFeeAmount } from './tailFee.js'
 
 const exampleRate = {
@@ -96,6 +96,35 @@ test('顶部统计按两位金额公式计算', () => {
     netProfit: 15.22,
     withdrawalFee: 0.31,
     pureProfit: 14.91,
+  })
+})
+
+test('在线采购金额规范化为非负两位小数', () => {
+  assert.equal(normalizeEditablePurchaseAmount('0'), '0.00')
+  assert.equal(normalizeEditablePurchaseAmount('12'), '12.00')
+  assert.equal(normalizeEditablePurchaseAmount('12.3'), '12.30')
+  assert.equal(normalizeEditablePurchaseAmount('12.34'), '12.34')
+
+  for (const value of ['', '-1', '1.234', 'abc']) {
+    assert.throws(() => normalizeEditablePurchaseAmount(value), LedgerCalculationError)
+  }
+})
+
+test('修改采购金额只重算利润字段并使用已保存广告费用', () => {
+  assert.deepEqual(calculateLedgerPurchaseAmountValues({
+    salePrice: '45',
+    purchaseAmount: '20',
+    freight: '8.25',
+    commission: '5.40',
+    ad22: '9.90',
+    ad30: '13.50',
+    tailFee: '2%',
+  }), {
+    purchaseAmount: '20.00',
+    grossProfit: '23.77',
+    netProfit: '10.12',
+    ad22Net: '0.22',
+    ad30Net: '-3.38',
   })
 })
 

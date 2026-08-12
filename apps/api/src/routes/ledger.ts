@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import { forbidden, type AuthEnv, requireAuth, requirePermission } from '../modules/auth/auth.middleware.js'
 import { loadAuthContextForShop } from '../modules/auth/auth.service.js'
-import { LedgerCalculationError } from '../modules/ledger/calculation.js'
+import { EDITABLE_PURCHASE_AMOUNT_PATTERN, LedgerCalculationError } from '../modules/ledger/calculation.js'
 import { parseLedgerFileAsync } from '../modules/ledger/parser.js'
 import {
   createLedgerImport,
@@ -14,6 +14,7 @@ import {
   LedgerRestoreConflictError,
   restoreLedgerItem,
   ShopAccessForbiddenError,
+  updateLedgerItemPurchaseAmount,
   updateLedgerItemWeight,
 } from '../modules/ledger/repository.js'
 import { readBody, resolveDeleteScope, resolveShopScope } from './helpers.js'
@@ -52,6 +53,10 @@ const batchDeleteSchema = z.object({
 
 const updateWeightSchema = z.object({
   packageWeight: z.number().finite().nonnegative(),
+})
+
+const updatePurchaseAmountSchema = z.object({
+  purchaseAmount: z.string().trim().regex(EDITABLE_PURCHASE_AMOUNT_PATTERN),
 })
 
 type LogLevel = 'info' | 'warn' | 'error'
@@ -250,6 +255,39 @@ ledgerRoutes.patch('/items/:id/weight', requireAuth, async (context) => {
 
   try {
     const item = await updateLedgerItemWeight(itemId, body.packageWeight)
+    if (!item) {
+      return context.json({ code: 'NOT_FOUND', message: '记录不存在。' }, 404)
+    }
+    return context.json({ item })
+  } catch (error) {
+    if (error instanceof LedgerCalculationError) {
+      return context.json({ code: 'LEDGER_CALCULATION_ERROR', message: error.message }, 422)
+    }
+    throw error
+  }
+})
+
+ledgerRoutes.patch('/items/:id/purchase-amount', requireAuth, async (context) => {
+  const itemId = Number(context.req.param('id'))
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '记录 ID 不正确。' }, 400)
+  }
+  const body = await readBody(context, updatePurchaseAmountSchema)
+  if (!body) {
+    return context.json({ code: 'VALIDATION_ERROR', message: '采购金额必须是大于等于 0 且最多两位小数的数字。' }, 400)
+  }
+
+  const shopId = await getLedgerItemShopId(itemId)
+  if (!shopId) {
+    return context.json({ code: 'NOT_FOUND', message: '记录不存在。' }, 404)
+  }
+  const shopContext = await loadAuthContextForShop(context.get('authUser').id, shopId)
+  if (!shopContext?.permissions.includes('ledger.edit')) {
+    return forbidden(context)
+  }
+
+  try {
+    const item = await updateLedgerItemPurchaseAmount(itemId, body.purchaseAmount)
     if (!item) {
       return context.json({ code: 'NOT_FOUND', message: '记录不存在。' }, 404)
     }

@@ -3,6 +3,7 @@ import { Decimal } from 'decimal.js'
 import { calculateTailFeeAmount, normalizeTailFeeRate } from './tailFee.js'
 
 const MONEY_DECIMAL_PLACES = 2
+export const EDITABLE_PURCHASE_AMOUNT_PATTERN = /^\d+(?:\.\d{1,2})?$/
 
 export class LedgerCalculationError extends Error {
   constructor(message: string) {
@@ -50,6 +51,14 @@ export function roundLedgerMoney(value: Decimal.Value) {
 
 function formatMoney(value: Decimal.Value) {
   return roundLedgerMoney(value).toFixed(MONEY_DECIMAL_PLACES)
+}
+
+export function normalizeEditablePurchaseAmount(value: string) {
+  const normalized = value.trim()
+  if (!EDITABLE_PURCHASE_AMOUNT_PATTERN.test(normalized)) {
+    throw new LedgerCalculationError('采购金额必须是大于等于 0 且最多两位小数的数字。')
+  }
+  return formatMoney(normalized)
 }
 
 export function calculateLedgerStats(input: {
@@ -122,6 +131,37 @@ export function calculateLedgerProfitValues(input: {
     ad22Net: formatMoney(ad22Net),
     ad30: formatMoney(ad30),
     ad30Net: formatMoney(ad30Net),
+  }
+}
+
+export function calculateLedgerPurchaseAmountValues(input: {
+  salePrice: string | null
+  purchaseAmount: string
+  freight: string | null
+  commission: string | null
+  ad22: string | null
+  ad30: string | null
+  tailFee: string | null
+}) {
+  const purchaseAmount = normalizeEditablePurchaseAmount(input.purchaseAmount)
+  const grossValues = calculateLedgerGrossProfit({
+    salePrice: input.salePrice,
+    purchaseAmount,
+    tailFee: input.tailFee,
+  })
+  const grossProfit = parseRequiredAmount(grossValues.grossProfit, '毛利')
+  const freight = roundLedgerMoney(parseRequiredAmount(input.freight, '运费'))
+  const commission = roundLedgerMoney(parseRequiredAmount(input.commission, '抽点'))
+  const ad22 = roundLedgerMoney(parseRequiredAmount(input.ad22, '广告22%'))
+  const ad30 = roundLedgerMoney(parseRequiredAmount(input.ad30, '广告30%'))
+  const netProfit = roundLedgerMoney(grossProfit.minus(freight).minus(commission))
+
+  return {
+    purchaseAmount,
+    grossProfit: grossValues.grossProfit,
+    netProfit: formatMoney(netProfit),
+    ad22Net: formatMoney(netProfit.minus(ad22)),
+    ad30Net: formatMoney(netProfit.minus(ad30)),
   }
 }
 

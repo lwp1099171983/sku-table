@@ -185,6 +185,14 @@ export interface UpdateLedgerWeightResponseDto {
   item: LedgerItem
 }
 
+export interface UpdateLedgerPurchaseAmountRequestDto {
+  purchaseAmount: string
+}
+
+export interface UpdateLedgerPurchaseAmountResponseDto {
+  item: LedgerItem
+}
+
 export interface ShippingRateVersionListResponseDto {
   items: ShippingRateVersion[]
 }

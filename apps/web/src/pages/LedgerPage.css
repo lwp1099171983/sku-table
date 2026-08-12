@@ -9,11 +9,17 @@
 .ledger-loss-filter { width: 164px; }
 .ledger-ellipsis-cell { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ledger-weight-display,
-.ledger-weight-editor { min-width: 132px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
-.ledger-weight-display > span { min-width: 64px; text-align: right; }
-.ledger-weight-editor .ant-input-number { width: 82px; }
+.ledger-weight-editor,
+.ledger-purchase-display,
+.ledger-purchase-editor { min-width: 132px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.ledger-weight-display > span,
+.ledger-purchase-display > span { min-width: 64px; text-align: right; }
+.ledger-weight-editor .ant-input-number,
+.ledger-purchase-editor .ant-input-number { width: 82px; }
 .ledger-weight-display .ant-btn,
-.ledger-weight-editor .ant-btn { flex: 0 0 28px; width: 28px; height: 28px; padding: 0; }
+.ledger-weight-editor .ant-btn,
+.ledger-purchase-display .ant-btn,
+.ledger-purchase-editor .ant-btn { flex: 0 0 28px; width: 28px; height: 28px; padding: 0; }
 
 @media (max-width: 1000px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }

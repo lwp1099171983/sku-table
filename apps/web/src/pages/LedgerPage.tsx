@@ -138,6 +138,74 @@ function EditableWeightCell({ record, onSaved }: { record: LedgerItem; onSaved: 
   )
 }
 
+function EditablePurchaseAmountCell({ record, onSaved }: { record: LedgerItem; onSaved: (item: LedgerItem) => Promise<void> }) {
+  const { message } = AntdApp.useApp()
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [value, setValue] = useState<string | null>(null)
+
+  function startEditing() {
+    const current = record.purchaseAmount?.replace(/[￥¥,，\s]/g, '') ?? ''
+    setValue(/^\d+(?:\.\d{1,2})?$/.test(current) ? current : null)
+    setIsEditing(true)
+  }
+
+  function cancelEditing() {
+    setIsEditing(false)
+    setValue(null)
+  }
+
+  async function savePurchaseAmount() {
+    if (value === null || !/^\d+(?:\.\d{1,2})?$/.test(value)) {
+      message.error('请输入大于等于 0 且最多两位小数的采购金额。')
+      return
+    }
+    setIsSaving(true)
+    try {
+      const result = await ledgerService.updatePurchaseAmount(record.id, value)
+      await onSaved(result.item)
+      setIsEditing(false)
+      message.success('采购金额及相关利润已重新计算。')
+    } catch (error) {
+      const apiMessage = (error as { response?: { data?: { message?: string } } }).response?.data?.message
+      message.error(apiMessage || '采购金额保存失败，请稍后重试。')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <div className="ledger-purchase-editor">
+        <InputNumber<string>
+          aria-label="采购金额"
+          min="0"
+          precision={2}
+          stringMode
+          value={value}
+          onChange={setValue}
+          onKeyDown={(event) => { if (event.key === 'Enter') void savePurchaseAmount() }}
+        />
+        <Tooltip title="保存">
+          <Button type="text" size="small" icon={<CheckOutlined />} loading={isSaving} onClick={() => void savePurchaseAmount()} aria-label="保存采购金额" />
+        </Tooltip>
+        <Tooltip title="取消">
+          <Button type="text" size="small" icon={<CloseOutlined />} disabled={isSaving} onClick={cancelEditing} aria-label="取消编辑采购金额" />
+        </Tooltip>
+      </div>
+    )
+  }
+
+  return (
+    <div className="ledger-purchase-display">
+      <span>{renderAmount(record.purchaseAmount)}</span>
+      <Tooltip title="编辑采购金额">
+        <Button type="text" size="small" icon={<EditOutlined />} onClick={startEditing} aria-label="编辑采购金额" />
+      </Tooltip>
+    </div>
+  )
+}
+
 export function LedgerPage() {
   const { canImportLedger, canEditLedger, canDeleteLedger, canViewLedgerStats, currentShop } = useAuth()
   const { message } = AntdApp.useApp()
@@ -277,7 +345,7 @@ export function LedgerPage() {
     { label: '纯利润', value: stats.pureProfit, highlight: true },
   ]
 
-  const handleWeightSaved = useCallback(async (updatedItem: LedgerItem) => {
+  const handleItemSaved = useCallback(async (updatedItem: LedgerItem) => {
     setItems((current) => current.map((item) => item.id === updatedItem.id ? updatedItem : item))
     await loadItems()
   }, [loadItems])
@@ -295,7 +363,17 @@ export function LedgerPage() {
       { title: '订单号', dataIndex: 'orderNo', key: 'orderNo', width: 170, ellipsis, render: renderEllipsisText },
       { title: 'SKU', dataIndex: 'sku', key: 'sku', width: 85, ellipsis, render: renderEllipsisText },
       { title: '售价', dataIndex: 'salePrice', key: 'salePrice', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
-      { title: '采购金额', dataIndex: 'purchaseAmount', key: 'purchaseAmount', width: 100, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      {
+        title: '采购金额',
+        dataIndex: 'purchaseAmount',
+        key: 'purchaseAmount',
+        width: canEditLedger ? 166 : 100,
+        align: 'right' as const,
+        ellipsis,
+        render: (_, record) => canEditLedger
+          ? <EditablePurchaseAmountCell record={record} onSaved={handleItemSaved} />
+          : renderEllipsisAmount(record.purchaseAmount),
+      },
       {
         title: '包裹重量',
         dataIndex: 'packageWeight',
@@ -304,7 +382,7 @@ export function LedgerPage() {
         align: 'right' as const,
         ellipsis,
         render: (_, record) => canEditLedger
-          ? <EditableWeightCell record={record} onSaved={handleWeightSaved} />
+          ? <EditableWeightCell record={record} onSaved={handleItemSaved} />
           : renderEllipsisText(record.packageWeight),
       },
       { title: '毛利', dataIndex: 'grossProfit', key: 'grossProfit', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
@@ -340,7 +418,7 @@ export function LedgerPage() {
       })
     }
     return base
-  }, [canDeleteLedger, canEditLedger, currentShop, handleDelete, handleWeightSaved, page, pageSize])
+  }, [canDeleteLedger, canEditLedger, currentShop, handleDelete, handleItemSaved, page, pageSize])
 
   const rowSelection = canDeleteLedger ? {
     selectedRowKeys,
