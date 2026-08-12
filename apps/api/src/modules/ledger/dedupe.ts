@@ -1,21 +1,14 @@
 import type { ParsedLedgerItem } from './parser.js'
 
-// 非空订单号全局区分大小写去重；空订单号保留。
+// 非空订单号全局区分大小写去重；同一文件重复时以最后一行作为最终更新值，空订单号全部保留。
 export function dedupeLedgerItemsByOrderNo(items: ParsedLedgerItem[]) {
-  const seenOrderNos = new Set<string>()
-  const uniqueItems: ParsedLedgerItem[] = []
-  let skippedRows = 0
-
-  for (const item of items) {
-    if (item.orderNo) {
-      if (seenOrderNos.has(item.orderNo)) {
-        skippedRows += 1
-        continue
-      }
-      seenOrderNos.add(item.orderNo)
-    }
-    uniqueItems.push(item)
+  const lastIndexes = new Map<string, number>()
+  for (let index = 0; index < items.length; index += 1) {
+    const orderNo = items[index].orderNo
+    if (orderNo) lastIndexes.set(orderNo, index)
   }
 
-  return { items: uniqueItems, skippedRows }
+  const uniqueItems = items.filter((item, index) => !item.orderNo || lastIndexes.get(item.orderNo) === index)
+
+  return { items: uniqueItems, skippedRows: items.length - uniqueItems.length }
 }

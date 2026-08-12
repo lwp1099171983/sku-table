@@ -171,9 +171,11 @@ export interface LedgerListResponseDto extends PageResult<LedgerItem> {
 
 export interface LedgerImportResponseDto {
   batches: LedgerBatch[]
+  // 本次实际新增、更新和因文件内重复而忽略的 Excel 行数
   importedRows: number
+  updatedRows: number
   skippedRows: number
-  // 幂等命中：该文件（内容指纹）此前已导入过，未重复入库
+  // 兼容字段；台账每次上传都会生成新批次并应用更新，当前固定为 false
   reused: boolean
 }
 

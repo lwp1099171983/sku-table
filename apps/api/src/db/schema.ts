@@ -165,7 +165,7 @@ export const ledgerBatches = pgTable('ledger_batches', {
   id: uuid('id').primaryKey().defaultRandom(),
   shopId: uuid('shop_id').notNull(),
   fileName: text('file_name').notNull(),
-  // 导入幂等键（解析后业务数据的规范化 SHA-256），同店铺+同指纹只允许一个批次
+  // 历史兼容字段；台账重复上传会重新应用整行覆盖，当前新批次保持为空。
   idempotencyKey: text('idempotency_key'),
   uploadedBy: uuid('uploaded_by').notNull(),
   totalRows: integer('total_rows').notNull().default(0),

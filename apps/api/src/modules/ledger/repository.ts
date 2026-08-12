@@ -4,14 +4,14 @@ import type { LedgerListQueryDto, LedgerStats, UserRole } from '@sku-table/share
 import { Decimal } from 'decimal.js'
 import { db } from '../../db/client.js'
 import { ledgerBatches, ledgerItems, shopMemberRoles, shopMembers, shops } from '../../db/schema.js'
-import { hashLedgerItems } from '../imports/idempotency.js'
-import { calculateLedgerGrossProfit, calculateLedgerProfitValues, calculateLedgerPurchaseAmountValues, calculateLedgerStats, calculateLedgerValues, LedgerCalculationError, parseLedgerAmount, roundLedgerMoney } from './calculation.js'
+import { calculateLedgerPurchaseAmountValues, calculateLedgerStats, calculateLedgerValues, LedgerCalculationError, parseLedgerAmount, roundLedgerMoney } from './calculation.js'
 import { dedupeLedgerItemsByOrderNo } from './dedupe.js'
 import type { ParsedLedgerItem } from './parser.js'
-import { calculateTailFeeAmount, normalizeTailFeeRate } from './tailFee.js'
+import { calculateTailFeeAmount } from './tailFee.js'
 import { findActiveShippingRate } from './shippingRateRepository.js'
 
 const INSERT_CHUNK_SIZE = 1_000
+const LEDGER_IMPORT_LOCK_ID = 7_341_928
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
@@ -82,30 +82,67 @@ export class LedgerRestoreConflictError extends Error {
   }
 }
 
-function prepareImportedLedgerItem(item: ParsedLedgerItem): ParsedLedgerItem {
-  const tailFee = normalizeTailFeeRate(item.tailFee)
-  let grossProfit = item.grossProfit
-  try {
-    grossProfit = calculateLedgerGrossProfit({
-      salePrice: item.salePrice,
-      purchaseAmount: item.purchaseAmount,
-      tailFee,
-    }).grossProfit
-  } catch {
-    // 保留缺少售价或采购金额的原始公式值
+function toLedgerItemValues(item: ParsedLedgerItem, batchId: string, shopId: string) {
+  return {
+    batchId,
+    shopId,
+    seq: item.seq,
+    month: item.month,
+    orderDate: item.orderDate,
+    orderMonth: item.orderMonth,
+    orderNo: item.orderNo,
+    sku: item.sku,
+    salePrice: item.salePrice,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    purchaseAmount: item.purchaseAmount,
+    purchaseDate: item.purchaseDate,
+    purchasePlatform: item.purchasePlatform,
+    purchaseOrderNo: item.purchaseOrderNo,
+    grossProfit: item.grossProfit,
+    channelName: item.channelName,
+    packageWeight: item.packageWeight,
+    freight: item.freight,
+    commission: item.commission,
+    netProfit: item.netProfit,
+    ad22: item.ad22,
+    ad22Net: item.ad22Net,
+    ad30: item.ad30,
+    ad30Net: item.ad30Net,
+    tailFee: item.tailFee,
+    shippingRateVersionId: null,
+    remark: item.remark,
   }
-  try {
-    const calculated = calculateLedgerProfitValues({
-      salePrice: item.salePrice,
-      purchaseAmount: item.purchaseAmount,
-      freight: item.freight,
-      commission: item.commission,
-      tailFee,
-    })
-    return { ...item, tailFee, ...calculated }
-  } catch {
-    return { ...item, tailFee, grossProfit }
-  }
+}
+
+const ledgerImportUpdateSet = {
+  batchId: sql`excluded.batch_id`,
+  shopId: sql`excluded.shop_id`,
+  seq: sql`excluded.seq`,
+  month: sql`excluded.month`,
+  orderDate: sql`excluded.order_date`,
+  orderMonth: sql`excluded.order_month`,
+  sku: sql`excluded.sku`,
+  salePrice: sql`excluded.sale_price`,
+  quantity: sql`excluded.quantity`,
+  unitPrice: sql`excluded.unit_price`,
+  purchaseAmount: sql`excluded.purchase_amount`,
+  purchaseDate: sql`excluded.purchase_date`,
+  purchasePlatform: sql`excluded.purchase_platform`,
+  purchaseOrderNo: sql`excluded.purchase_order_no`,
+  grossProfit: sql`excluded.gross_profit`,
+  channelName: sql`excluded.channel_name`,
+  packageWeight: sql`excluded.package_weight`,
+  freight: sql`excluded.freight`,
+  commission: sql`excluded.commission`,
+  netProfit: sql`excluded.net_profit`,
+  ad22: sql`excluded.ad22`,
+  ad22Net: sql`excluded.ad22_net`,
+  ad30: sql`excluded.ad30`,
+  ad30Net: sql`excluded.ad30_net`,
+  tailFee: sql`excluded.tail_fee`,
+  shippingRateVersionId: sql`null`,
+  remark: sql`excluded.remark`,
 }
 
 function toPublicBatch(batch: typeof ledgerBatches.$inferSelect, shopName: string) {
@@ -190,7 +227,7 @@ export async function createLedgerImport(input: {
   importer: { id: string; isAdmin: boolean; roles: UserRole[] }
   items: ParsedLedgerItem[]
 }) {
-  const deduped = dedupeLedgerItemsByOrderNo(input.items.map(prepareImportedLedgerItem))
+  const deduped = dedupeLedgerItemsByOrderNo(input.items)
 
   // 按店铺分组
   const byShop = new Map<string, ParsedLedgerItem[]>()
@@ -200,101 +237,104 @@ export async function createLedgerImport(input: {
     byShop.set(item.shopName, list)
   }
 
-  // 幂等指纹：基于解析后的业务数据（排除自动序号），事务外计算以缩短持锁时间
-  const fingerprints = new Map<string, string>()
-  for (const [shopName, shopItems] of byShop) {
-    fingerprints.set(shopName, hashLedgerItems(shopItems))
-  }
-
-  const { batches, reused, importedRows, skippedRows } = await db.transaction(async (tx) => {
+  const { batches, importedRows, updatedRows, skippedRows } = await db.transaction(async (tx) => {
+    // 先序列化导入事务，再读取现有订单，确保新增/更新计数和批次行数在并发导入下保持一致。
+    await tx.execute(sql`select pg_advisory_xact_lock(${LEDGER_IMPORT_LOCK_ID})`)
     const results: Awaited<ReturnType<typeof toPublicBatch>>[] = []
-    let reusedCount = 0
     let importedRows = 0
+    let updatedRows = 0
     let skippedRows = deduped.skippedRows
 
+    const shopIds = new Map<string, string>()
+    for (const shopName of byShop.keys()) {
+      shopIds.set(shopName, await findOrCreateShop(tx, shopName, input.importer))
+    }
+
+    const existingByOrderNo = new Map<string, { batchId: string; shopId: string; shopName: string }>()
+    const orderNos = deduped.items.flatMap((item) => item.orderNo ? [item.orderNo] : [])
+    for (let start = 0; start < orderNos.length; start += INSERT_CHUNK_SIZE) {
+      const chunk = orderNos.slice(start, start + INSERT_CHUNK_SIZE)
+      const existingRows = await tx.select({
+        orderNo: ledgerItems.orderNo,
+        batchId: ledgerItems.batchId,
+        shopId: ledgerItems.shopId,
+        shopName: shops.name,
+      })
+        .from(ledgerItems)
+        .innerJoin(shops, eq(shops.id, ledgerItems.shopId))
+        .where(and(inArray(ledgerItems.orderNo, chunk), isNull(ledgerItems.deletedAt)))
+        .for('update')
+      for (const row of existingRows) {
+        if (!row.orderNo) continue
+        await assertImporterCanWrite(tx, row.shopId, row.shopName, input.importer)
+        existingByOrderNo.set(row.orderNo, row)
+      }
+    }
+
     for (const [shopName, shopItems] of byShop) {
-      const shopId = await findOrCreateShop(tx, shopName, input.importer)
-      const idempotencyKey = fingerprints.get(shopName) ?? ''
-      // 幂等插入：同店铺+同文件指纹的批次已存在时复用，不再写入明细
+      const shopId = shopIds.get(shopName)
+      if (!shopId) throw new Error(`店铺「${shopName}」解析失败。`)
       const [createdBatch] = await tx.insert(ledgerBatches).values({
         shopId,
         fileName: input.fileName,
         uploadedBy: input.uploadedBy,
-        idempotencyKey,
+        // 台账允许重复上传同一文件以恢复或覆盖当前数据，因此每次都创建新批次。
+        idempotencyKey: null,
         totalRows: 0,
-      }).onConflictDoNothing().returning()
-
-      if (!createdBatch) {
-        // 并发冲突时回查已有批次（与店铺自动创建同模式）
-        const [existing] = await tx.select()
-          .from(ledgerBatches)
-          .where(and(
-            eq(ledgerBatches.shopId, shopId),
-            eq(ledgerBatches.idempotencyKey, idempotencyKey),
-          ))
-          .limit(1)
-        if (!existing) {
-          throw new Error('台账批次创建失败。')
-        }
-        results.push(toPublicBatch(existing, shopName))
-        reusedCount += 1
-        skippedRows += shopItems.length
-        continue
-      }
+      }).returning()
+      if (!createdBatch) throw new Error('台账批次创建失败。')
 
       let importedForShop = 0
+      let updatedForShop = 0
+      const previousBatchCounts = new Map<string, number>()
       for (let start = 0; start < shopItems.length; start += INSERT_CHUNK_SIZE) {
         const chunk = shopItems.slice(start, start + INSERT_CHUNK_SIZE)
-        const inserted = await tx.insert(ledgerItems).values(chunk.map((item) => ({
-          batchId: createdBatch.id,
-          shopId,
-          seq: item.seq,
-          month: item.month,
-          orderDate: item.orderDate,
-          orderMonth: item.orderMonth,
-          orderNo: item.orderNo,
-          sku: item.sku,
-          salePrice: item.salePrice,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          purchaseAmount: item.purchaseAmount,
-          purchaseDate: item.purchaseDate,
-          purchasePlatform: item.purchasePlatform,
-          purchaseOrderNo: item.purchaseOrderNo,
-          grossProfit: item.grossProfit,
-          channelName: item.channelName,
-          packageWeight: item.packageWeight,
-          freight: item.freight,
-          commission: item.commission,
-          netProfit: item.netProfit,
-          ad22: item.ad22,
-          ad22Net: item.ad22Net,
-          ad30: item.ad30,
-          ad30Net: item.ad30Net,
-          tailFee: item.tailFee,
-          remark: item.remark,
-        }))).onConflictDoNothing().returning({ id: ledgerItems.id })
-        importedForShop += inserted.length
+        await tx.insert(ledgerItems)
+          .values(chunk.map((item) => toLedgerItemValues(item, createdBatch.id, shopId)))
+          .onConflictDoUpdate({
+            target: ledgerItems.orderNo,
+            targetWhere: sql`${ledgerItems.orderNo} is not null and ${ledgerItems.deletedAt} is null`,
+            set: ledgerImportUpdateSet,
+          })
+
+        for (const item of chunk) {
+          const existing = item.orderNo ? existingByOrderNo.get(item.orderNo) : undefined
+          if (!existing) {
+            importedForShop += 1
+            continue
+          }
+          updatedForShop += 1
+          previousBatchCounts.set(existing.batchId, (previousBatchCounts.get(existing.batchId) ?? 0) + 1)
+        }
+      }
+
+      for (const [batchId, movedRows] of previousBatchCounts) {
+        await tx.update(ledgerBatches)
+          .set({
+            totalRows: sql`greatest(${ledgerBatches.totalRows} - ${movedRows}, 0)`,
+            updatedAt: new Date(),
+          })
+          .where(eq(ledgerBatches.id, batchId))
       }
 
       await tx.update(ledgerBatches)
-        .set({ totalRows: importedForShop, updatedAt: new Date() })
+        .set({ totalRows: importedForShop + updatedForShop, updatedAt: new Date() })
         .where(eq(ledgerBatches.id, createdBatch.id))
 
       importedRows += importedForShop
-      skippedRows += shopItems.length - importedForShop
-      results.push(toPublicBatch({ ...createdBatch, totalRows: importedForShop }, shopName))
+      updatedRows += updatedForShop
+      results.push(toPublicBatch({ ...createdBatch, totalRows: importedForShop + updatedForShop }, shopName))
     }
 
     return {
       batches: results,
-      reused: reusedCount === results.length && results.length > 0,
       importedRows,
+      updatedRows,
       skippedRows,
     }
   })
 
-  return { batches, reused, importedRows, skippedRows }
+  return { batches, reused: false, importedRows, updatedRows, skippedRows }
 }
 
 // 列表：shopIds 为 null 表示不限店铺（管理员"全部"视图）；统计基于全部筛选行

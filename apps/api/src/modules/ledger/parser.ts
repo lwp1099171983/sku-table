@@ -38,6 +38,35 @@ const headerAliases: Record<string, keyof ParsedLedgerItem> = {
 // 解析所需的关键表头（用于定位表头行）
 const KEY_HEADERS = ['订单号', '售价', '采购金额', '店铺']
 
+// Excel 是台账最终数据源，重复订单会整行覆盖，因此必须提供全部可导入业务字段。
+const REQUIRED_HEADERS: Array<{ field: keyof ParsedLedgerItem; label: string }> = [
+  { field: 'seq', label: '序号' },
+  { field: 'month', label: '月份' },
+  { field: 'orderDate', label: '订单日期' },
+  { field: 'shopName', label: '店铺' },
+  { field: 'orderNo', label: '订单号' },
+  { field: 'sku', label: 'SKU（兼容跟踪号）' },
+  { field: 'salePrice', label: '售价' },
+  { field: 'quantity', label: '数量（兼容产品ID）' },
+  { field: 'unitPrice', label: '单价' },
+  { field: 'purchaseAmount', label: '采购金额' },
+  { field: 'purchaseDate', label: '采购日期' },
+  { field: 'purchasePlatform', label: '采购平台' },
+  { field: 'purchaseOrderNo', label: '采购订单号' },
+  { field: 'grossProfit', label: '毛利' },
+  { field: 'channelName', label: '渠道名称' },
+  { field: 'packageWeight', label: '包裹重量' },
+  { field: 'freight', label: '运费' },
+  { field: 'commission', label: '抽点' },
+  { field: 'netProfit', label: '净利' },
+  { field: 'ad22', label: '广告22%' },
+  { field: 'ad22Net', label: '22%净利' },
+  { field: 'ad30', label: '广告30%' },
+  { field: 'ad30Net', label: '30%净利' },
+  { field: 'tailFee', label: '尾程（兼容赔偿）' },
+  { field: 'remark', label: '备注' },
+]
+
 export interface ParsedLedgerItem {
   shopName: string
   seq: string | null
@@ -115,9 +144,10 @@ function hasLedgerHeader(rows: unknown[][]) {
   return findHeaderIndex(rows) >= 0
 }
 
-// 判断是否为可导入的数据行：必须包含 店铺/订单号/售价 中的至少一个关键字段
-function isDataRow(row: unknown[]) {
-  return [row[3], row[4], row[5]].some((value) => normalizeText(value) !== null)
+// 判断是否为可导入的数据行：必须包含店铺、订单号或售价中的至少一个关键字段。
+function isDataRow(row: unknown[], headerMap: Map<keyof ParsedLedgerItem, number>) {
+  return (['shopName', 'orderNo', 'salePrice'] as const)
+    .some((field) => normalizeText(row[headerMap.get(field) ?? -1]) !== null)
 }
 
 function parseSheet(sheet: XLSX.WorkSheet): ParsedLedgerItem[] {
@@ -133,11 +163,11 @@ function parseSheet(sheet: XLSX.WorkSheet): ParsedLedgerItem[] {
   }
 
   const headerMap = buildHeaderMap(rows[headerIndex])
-  for (const key of KEY_HEADERS) {
-    const field = headerAliases[key]
-    if (!headerMap.has(field)) {
-      throw new Error(`Excel 缺少必填表头：${key}。`)
-    }
+  const missingHeaders = REQUIRED_HEADERS
+    .filter(({ field }) => !headerMap.has(field))
+    .map(({ label }) => label)
+  if (missingHeaders.length > 0) {
+    throw new Error(`Excel 缺少完整台账表头：${missingHeaders.join('、')}。`)
   }
 
   const items: ParsedLedgerItem[] = []
@@ -146,7 +176,7 @@ function parseSheet(sheet: XLSX.WorkSheet): ParsedLedgerItem[] {
   for (let index = headerIndex + 1; index < rows.length; index += 1) {
     const row = rows[index]
     // 跳过统计区、公式错误残留等非数据行
-    if (!isDataRow(row)) continue
+    if (!isDataRow(row, headerMap)) continue
 
     const rowNumber = index + 1
     const getField = (field: keyof ParsedLedgerItem) => row[headerMap.get(field) ?? -1]

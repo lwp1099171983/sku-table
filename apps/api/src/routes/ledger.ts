@@ -188,7 +188,7 @@ ledgerRoutes.post('/import', requireAuth, requirePermission('ledger.import'), as
 
   const authContext = context.get('authContext')
   try {
-    const { batches, importedRows, skippedRows, reused } = await createLedgerImport({
+    const { batches, importedRows, updatedRows, skippedRows, reused } = await createLedgerImport({
       fileName: file.name || '未命名文件.xlsx',
       uploadedBy: context.get('authUser').id,
       importer: {
@@ -203,12 +203,13 @@ ledgerRoutes.post('/import', requireAuth, requirePermission('ledger.import'), as
       ...fileDetails,
       ...parsedDetails,
       importedRows,
+      updatedRows,
       skippedRows,
       reused,
       batchIds: batches.map((batch) => batch.id),
       durationMs: Date.now() - startedAt,
     })
-    return context.json({ batches, importedRows, skippedRows, reused }, reused ? 200 : 201)
+    return context.json({ batches, importedRows, updatedRows, skippedRows, reused }, reused ? 200 : 201)
   } catch (error) {
     if (error instanceof ShopAccessForbiddenError) {
       logLedgerImport(context, 'warn', {

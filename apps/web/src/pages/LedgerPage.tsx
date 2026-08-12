@@ -314,13 +314,8 @@ export function LedgerPage() {
         file,
         onProgress: setUploadProgress,
       })
-      if (result.reused) {
-        message.info(`该文件此前已处理过，本次跳过 ${result.skippedRows.toLocaleString()} 行。`)
-      } else if (result.skippedRows > 0) {
-        message.warning(`已导入 ${result.importedRows.toLocaleString()} 行，跳过 ${result.skippedRows.toLocaleString()} 行重复订单号。`)
-      } else {
-        message.success(`已导入 ${result.importedRows.toLocaleString()} 行台账数据（${result.batches.length} 个店铺）。`)
-      }
+      const skippedText = result.skippedRows > 0 ? `，忽略文件内重复 ${result.skippedRows.toLocaleString()} 行` : ''
+      message.success(`新增 ${result.importedRows.toLocaleString()} 行，更新 ${result.updatedRows.toLocaleString()} 行${skippedText}（${result.batches.length} 个店铺）。`)
       setFile(null)
       setIsImportModalOpen(false)
       setPage(1)
@@ -475,8 +470,8 @@ export function LedgerPage() {
         keyboard={!isUploading}
         onCancel={() => { if (!isUploading) { setFile(null); setIsImportModalOpen(false) } }}
       >
-        <Typography.Paragraph type="secondary">上传订单统计表 Excel（25 个字段，含 SKU），系统按"店铺"列自动归类；不存在的店铺会自动创建。</Typography.Paragraph>
-        <Alert type="info" showIcon message="支持 .xlsx / .xls；订单号全系统唯一，重复行自动跳过；单批最多 5 万行；导入时公式列按 Excel 保存值入库，在线修改重量时重新计算。" />
+        <Typography.Paragraph type="secondary">上传完整订单统计表 Excel（25 个业务字段，含 SKU），系统按"店铺"列自动归类；不存在的店铺会自动创建。</Typography.Paragraph>
+        <Alert type="info" showIcon message="支持 .xlsx / .xls；必须包含完整台账表头；已有订单号按 Excel 整行覆盖，空单元格会清空旧值，同一文件重复时最后一行生效；公式列保存 Excel 原值，在线编辑时才由系统重算。" />
         <div className="ledger-upload-block">
           <Upload.Dragger {...uploadProps} disabled={isUploading}>
             <p className="ant-upload-drag-icon"><InboxOutlined /></p>
