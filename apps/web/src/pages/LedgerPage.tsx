@@ -1,4 +1,4 @@
-import { CheckOutlined, CloseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
+import { CheckOutlined, CloseOutlined, DeleteOutlined, EditOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
 import { Alert, App as AntdApp, Button, DatePicker, Empty, Input, InputNumber, Modal, Pagination, Popconfirm, Progress, Select, Space, Table, Tooltip, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
@@ -10,7 +10,6 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useRecordDeletion } from '../hooks/useRecordDeletion'
 import { useAuth } from '../layouts/AuthContext'
 import { ledgerService } from '../services/ledgerService'
-import { downloadTemplate, templateFiles } from '../services/templateService'
 import './LedgerPage.css'
 
 const DEFAULT_PAGE_SIZE = 30
@@ -385,7 +384,6 @@ export function LedgerPage() {
         <Space className="page-actions">
           {canImportLedger && <Button type="primary" icon={<UploadOutlined />} onClick={() => setIsImportModalOpen(true)}>导入台账</Button>}
           <Button icon={<HistoryOutlined />} onClick={() => setIsBatchModalOpen(true)}>导入记录</Button>
-          <Button icon={<DownloadOutlined />} onClick={() => downloadTemplate(templateFiles.ledger, '台账模板.xlsx')}>下载模板</Button>
           <Button icon={<ReloadOutlined />} onClick={() => void loadItems()}>刷新</Button>
         </Space>
       </div>

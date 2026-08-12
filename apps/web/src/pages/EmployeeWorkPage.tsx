@@ -1,4 +1,4 @@
-import { DeleteOutlined, DownloadOutlined, HistoryOutlined, InboxOutlined, LinkOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
+import { DeleteOutlined, HistoryOutlined, InboxOutlined, LinkOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
 import { Alert, App as AntdApp, AutoComplete, Button, Empty, Input, Modal, Pagination, Popconfirm, Progress, Select, Space, Table, Tag, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
@@ -9,7 +9,6 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useRecordDeletion } from '../hooks/useRecordDeletion'
 import { useAuth } from '../layouts/AuthContext'
 import { employeeWorkService } from '../services/employeeWorkService'
-import { downloadTemplate, templateFiles } from '../services/templateService'
 import './EmployeeWorkPage.css'
 
 const DEFAULT_PAGE_SIZE = 30
@@ -371,7 +370,6 @@ export function EmployeeWorkPage() {
         <Space className="page-actions">
           {canImportEmployeeWork && <Button type="primary" icon={<UploadOutlined />} onClick={openImportModal}>导入员工数据</Button>}
           <Button icon={<HistoryOutlined />} onClick={() => { setIsBatchModalOpen(true); setBatchPage(1) }}>导入记录</Button>
-          <Button icon={<DownloadOutlined />} onClick={() => downloadTemplate(templateFiles.employeeWork, '员工工作记录模板.xlsx')}>下载模板</Button>
           <Button icon={<ReloadOutlined />} onClick={() => { void loadEmployees(); void loadItems() }}>刷新</Button>
         </Space>
       </div>
