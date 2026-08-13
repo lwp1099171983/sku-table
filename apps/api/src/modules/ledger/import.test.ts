@@ -121,6 +121,19 @@ test('新台账表头 SKU 可以导入', async () => {
   assert.equal(item.sku, 'SKU-001')
 })
 
+test('数量表头可选，缺少时按空值导入', async () => {
+  const headers = fullHeaders.filter((header) => header !== '数量')
+  const row = headers.map((header) => createFullRow()[fullHeaders.indexOf(header)])
+  const [item] = await parseRows(headers, row)
+  assert.equal(item.quantity, null)
+})
+
+test('产品ID不再作为数量的兼容表头', async () => {
+  const headers = fullHeaders.map((header) => header === '数量' ? '产品ID' : header)
+  const [item] = await parseRows(headers, createFullRow())
+  assert.equal(item.quantity, null)
+})
+
 test('旧台账表头“跟踪号”保持兼容', async () => {
   const headers = fullHeaders.map((header) => header === 'SKU' ? '跟踪号' : header)
   const [item] = await parseRows(headers, createFullRow({ 'SKU': 'SKU-OLD' }))

@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx'
 import { assertExcelFile, MAX_ROWS, normalizeHeader, normalizeText } from '../imports/xlsx.js'
 import { normalizeTailFeeRate } from './tailFee.js'
 
-// 25 个字段的表头别名映射（normalizeHeader 后的 key）
+// 台账字段的表头映射（normalizeHeader 后的 key）
 const headerAliases: Record<string, keyof ParsedLedgerItem> = {
   '序号': 'seq',
   '月份': 'month',
@@ -14,7 +14,6 @@ const headerAliases: Record<string, keyof ParsedLedgerItem> = {
   '跟踪号': 'sku', // 兼容旧版台账文件
   '售价': 'salePrice',
   '数量': 'quantity',
-  '产品ID': 'quantity', // 用户 Excel 中"数量"对应"产品ID"列
   '单价': 'unitPrice',
   '采购金额': 'purchaseAmount',
   '采购日期': 'purchaseDate',
@@ -47,7 +46,6 @@ const REQUIRED_HEADERS: Array<{ field: keyof ParsedLedgerItem; label: string }> 
   { field: 'orderNo', label: '订单号' },
   { field: 'sku', label: 'SKU（兼容跟踪号）' },
   { field: 'salePrice', label: '售价' },
-  { field: 'quantity', label: '数量（兼容产品ID）' },
   { field: 'unitPrice', label: '单价' },
   { field: 'purchaseAmount', label: '采购金额' },
   { field: 'purchaseDate', label: '采购日期' },
