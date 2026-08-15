@@ -1,5 +1,5 @@
 import { CheckOutlined, CloseOutlined, DeleteOutlined, EditOutlined, HistoryOutlined, InboxOutlined, ReloadOutlined, SearchOutlined, UploadOutlined } from '@ant-design/icons'
-import { Alert, App as AntdApp, Button, DatePicker, Empty, Input, InputNumber, Modal, Pagination, Popconfirm, Progress, Select, Space, Table, Tooltip, Typography, Upload } from 'antd'
+import { Alert, App as AntdApp, Button, DatePicker, Empty, Input, InputNumber, Modal, Pagination, Popconfirm, Progress, Space, Table, Tooltip, Typography, Upload } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile, UploadProps } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -16,14 +16,7 @@ const DEFAULT_PAGE_SIZE = 30
 const PAGE_SIZE_OPTIONS = [30, 50, 100]
 const FILTER_INPUT_DEBOUNCE_MS = 300
 type MonthRangeValue = [Dayjs | null, Dayjs | null] | null
-type LossFilterValue = 'all' | 'loss'
-
-function getLossFilterOptions(label: string) {
-  return [
-    { value: 'all', label: `${label}：全部` },
-    { value: 'loss', label: `${label}：仅亏损` },
-  ]
-}
+type AmountBoundaryValue = string | null
 
 const EMPTY_STATS: LedgerStats = {
   purchaseAmount: 0,
@@ -52,8 +45,14 @@ function renderAmount(value: string | null) {
   return Number.isFinite(amount) ? formatAmount(amount) : value
 }
 
-function EllipsisCell({ text }: { text: string }) {
-  const content = <span className="ledger-ellipsis-cell">{text}</span>
+function parseFiniteAmount(value: string | null) {
+  if (!value) return null
+  const amount = Number(value.replace(/[￥¥,，\s]/g, ''))
+  return Number.isFinite(amount) ? amount : null
+}
+
+function EllipsisCell({ text, className }: { text: string; className?: string }) {
+  const content = <span className={`ledger-ellipsis-cell${className ? ` ${className}` : ''}`}>{text}</span>
   // 省略由表格单元格控制，始终绑定 Tooltip，确保截断后的完整值可查看。
   return text === '—' ? content : <Tooltip title={text}>{content}</Tooltip>
 }
@@ -64,6 +63,44 @@ function renderEllipsisText(value: string | null) {
 
 function renderEllipsisAmount(value: string | null) {
   return <EllipsisCell text={renderAmount(value)} />
+}
+
+function renderProfitAmount(value: string | null) {
+  const amount = parseFiniteAmount(value)
+  return <EllipsisCell text={renderAmount(value)} className={amount !== null && amount < 0 ? 'ledger-negative-profit' : undefined} />
+}
+
+function ProfitRangeFilter({
+  label,
+  minimum,
+  maximum,
+  onMinimumChange,
+  onMaximumChange,
+}: {
+  label: string
+  minimum: AmountBoundaryValue
+  maximum: AmountBoundaryValue
+  onMinimumChange: (value: AmountBoundaryValue) => void
+  onMaximumChange: (value: AmountBoundaryValue) => void
+}) {
+  return (
+    <div className="ledger-profit-range" aria-label={`${label}范围`}>
+      <Typography.Text className="ledger-profit-range-label">{label}</Typography.Text>
+      <InputNumber<string> aria-label={`${label}最低值`} controls={false} precision={2} stringMode placeholder="最低" value={minimum} onChange={onMinimumChange} />
+      <span className="ledger-profit-range-separator">至</span>
+      <InputNumber<string> aria-label={`${label}最高值`} controls={false} precision={2} stringMode placeholder="最高" value={maximum} onChange={onMaximumChange} />
+    </div>
+  )
+}
+
+function isAmountRangeInvalid(minimum: AmountBoundaryValue, maximum: AmountBoundaryValue) {
+  const minimumAmount = minimum === null ? null : Number(minimum)
+  const maximumAmount = maximum === null ? null : Number(maximum)
+  return minimumAmount !== null && maximumAmount !== null && minimumAmount > maximumAmount
+}
+
+function toOptionalAmount(value: AmountBoundaryValue) {
+  return value === null ? undefined : Number(value)
 }
 
 function getCurrentYearMonthRange(): MonthRangeValue {
@@ -216,11 +253,20 @@ export function LedgerPage() {
   const [filterMonthRange, setFilterMonthRange] = useState<MonthRangeValue>(getCurrentYearMonthRange)
   const [filterKeyword, setFilterKeyword] = useState('')
   const [filterSku, setFilterSku] = useState('')
-  const [filterNetProfitLoss, setFilterNetProfitLoss] = useState<LossFilterValue>('all')
-  const [filterAd22NetLoss, setFilterAd22NetLoss] = useState<LossFilterValue>('all')
-  const [filterAd30NetLoss, setFilterAd30NetLoss] = useState<LossFilterValue>('all')
+  const [filterNetProfitMin, setFilterNetProfitMin] = useState<AmountBoundaryValue>(null)
+  const [filterNetProfitMax, setFilterNetProfitMax] = useState<AmountBoundaryValue>(null)
+  const [filterAd22NetMin, setFilterAd22NetMin] = useState<AmountBoundaryValue>(null)
+  const [filterAd22NetMax, setFilterAd22NetMax] = useState<AmountBoundaryValue>(null)
+  const [filterAd30NetMin, setFilterAd30NetMin] = useState<AmountBoundaryValue>(null)
+  const [filterAd30NetMax, setFilterAd30NetMax] = useState<AmountBoundaryValue>(null)
   const debouncedKeyword = useDebouncedValue(filterKeyword, FILTER_INPUT_DEBOUNCE_MS)
   const debouncedSku = useDebouncedValue(filterSku, FILTER_INPUT_DEBOUNCE_MS)
+  const debouncedNetProfitMin = useDebouncedValue(filterNetProfitMin, FILTER_INPUT_DEBOUNCE_MS)
+  const debouncedNetProfitMax = useDebouncedValue(filterNetProfitMax, FILTER_INPUT_DEBOUNCE_MS)
+  const debouncedAd22NetMin = useDebouncedValue(filterAd22NetMin, FILTER_INPUT_DEBOUNCE_MS)
+  const debouncedAd22NetMax = useDebouncedValue(filterAd22NetMax, FILTER_INPUT_DEBOUNCE_MS)
+  const debouncedAd30NetMin = useDebouncedValue(filterAd30NetMin, FILTER_INPUT_DEBOUNCE_MS)
+  const debouncedAd30NetMax = useDebouncedValue(filterAd30NetMax, FILTER_INPUT_DEBOUNCE_MS)
   const [items, setItems] = useState<LedgerItem[]>([])
   const [stats, setStats] = useState<LedgerStats>(EMPTY_STATS)
   const [page, setPage] = useState(1)
@@ -235,7 +281,17 @@ export function LedgerPage() {
   const [batchesLoading, setBatchesLoading] = useState(false)
 
   const shopId = currentShop?.id ?? null
-  const isFilterInputPending = filterKeyword !== debouncedKeyword || filterSku !== debouncedSku
+  const isFilterInputPending = filterKeyword !== debouncedKeyword
+    || filterSku !== debouncedSku
+    || filterNetProfitMin !== debouncedNetProfitMin
+    || filterNetProfitMax !== debouncedNetProfitMax
+    || filterAd22NetMin !== debouncedAd22NetMin
+    || filterAd22NetMax !== debouncedAd22NetMax
+    || filterAd30NetMin !== debouncedAd30NetMin
+    || filterAd30NetMax !== debouncedAd30NetMax
+  const hasInvalidProfitRange = isAmountRangeInvalid(filterNetProfitMin, filterNetProfitMax)
+    || isAmountRangeInvalid(filterAd22NetMin, filterAd22NetMax)
+    || isAmountRangeInvalid(filterAd30NetMin, filterAd30NetMax)
 
   const loadItems = useCallback(async () => {
     setLoading(true)
@@ -248,9 +304,12 @@ export function LedgerPage() {
         endMonth: filterMonthRange?.[1]?.format('YYYY-MM'),
         keyword: debouncedKeyword.trim() || undefined,
         sku: debouncedSku.trim() || undefined,
-        netProfitLoss: filterNetProfitLoss === 'loss' || undefined,
-        ad22NetLoss: filterAd22NetLoss === 'loss' || undefined,
-        ad30NetLoss: filterAd30NetLoss === 'loss' || undefined,
+        netProfitMin: toOptionalAmount(debouncedNetProfitMin),
+        netProfitMax: toOptionalAmount(debouncedNetProfitMax),
+        ad22NetMin: toOptionalAmount(debouncedAd22NetMin),
+        ad22NetMax: toOptionalAmount(debouncedAd22NetMax),
+        ad30NetMin: toOptionalAmount(debouncedAd30NetMin),
+        ad30NetMax: toOptionalAmount(debouncedAd30NetMax),
       })
       setItems(result.items)
       setStats(result.stats ?? EMPTY_STATS)
@@ -260,7 +319,7 @@ export function LedgerPage() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedKeyword, debouncedSku, filterAd22NetLoss, filterAd30NetLoss, filterMonthRange, filterNetProfitLoss, message, page, pageSize, shopId])
+  }, [debouncedAd22NetMax, debouncedAd22NetMin, debouncedAd30NetMax, debouncedAd30NetMin, debouncedKeyword, debouncedNetProfitMax, debouncedNetProfitMin, debouncedSku, filterMonthRange, message, page, pageSize, shopId])
 
   const loadBatches = useCallback(async () => {
     setBatchesLoading(true)
@@ -276,8 +335,8 @@ export function LedgerPage() {
   }, [batchPage, batchPageSize, message, shopId])
 
   useEffect(() => {
-    if (!isFilterInputPending) void loadItems()
-  }, [isFilterInputPending, loadItems])
+    if (!isFilterInputPending && !hasInvalidProfitRange) void loadItems()
+  }, [hasInvalidProfitRange, isFilterInputPending, loadItems])
   useEffect(() => { if (isBatchModalOpen) void loadBatches() }, [isBatchModalOpen, loadBatches])
 
   const { selectedRowKeys, setSelectedRowKeys, isDeleting, handleDelete, confirmDelete } = useRecordDeletion({
@@ -384,11 +443,11 @@ export function LedgerPage() {
       { title: '渠道名称', dataIndex: 'channelName', key: 'channelName', width: 160, ellipsis, render: renderEllipsisText },
       { title: '运费', dataIndex: 'freight', key: 'freight', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
       { title: '抽点', dataIndex: 'commission', key: 'commission', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
-      { title: '净利', dataIndex: 'netProfit', key: 'netProfit', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '净利', dataIndex: 'netProfit', key: 'netProfit', width: 90, align: 'right' as const, ellipsis, render: renderProfitAmount },
       { title: '广告22%', dataIndex: 'ad22', key: 'ad22', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
-      { title: '22%净利', dataIndex: 'ad22Net', key: 'ad22Net', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '22%净利', dataIndex: 'ad22Net', key: 'ad22Net', width: 90, align: 'right' as const, ellipsis, render: renderProfitAmount },
       { title: '广告30%', dataIndex: 'ad30', key: 'ad30', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
-      { title: '30%净利', dataIndex: 'ad30Net', key: 'ad30Net', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisAmount },
+      { title: '30%净利', dataIndex: 'ad30Net', key: 'ad30Net', width: 90, align: 'right' as const, ellipsis, render: renderProfitAmount },
       { title: '尾程', dataIndex: 'tailFee', key: 'tailFee', width: 90, align: 'right' as const, ellipsis, render: renderEllipsisText },
       { title: '备注', dataIndex: 'remark', key: 'remark', width: 160, ellipsis, render: renderEllipsisText },
     )
@@ -431,9 +490,12 @@ export function LedgerPage() {
     setFilterMonthRange(getCurrentYearMonthRange())
     setFilterKeyword('')
     setFilterSku('')
-    setFilterNetProfitLoss('all')
-    setFilterAd22NetLoss('all')
-    setFilterAd30NetLoss('all')
+    setFilterNetProfitMin(null)
+    setFilterNetProfitMax(null)
+    setFilterAd22NetMin(null)
+    setFilterAd22NetMax(null)
+    setFilterAd30NetMin(null)
+    setFilterAd30NetMax(null)
     setPage(1)
   }
 
@@ -551,11 +613,12 @@ export function LedgerPage() {
             />
             <Input className="ledger-filter-input" prefix={<SearchOutlined />} allowClear placeholder="订单号 / 采购订单号" value={filterKeyword} onChange={(event) => { setFilterKeyword(event.target.value); setPage(1) }} />
             <Input className="ledger-filter-input" prefix={<SearchOutlined />} allowClear placeholder="SKU" value={filterSku} onChange={(event) => { setFilterSku(event.target.value); setPage(1) }} />
-            <Select className="ledger-loss-filter" aria-label="净利是否亏损" value={filterNetProfitLoss} options={getLossFilterOptions('净利')} onChange={(value: LossFilterValue) => { setFilterNetProfitLoss(value); setPage(1) }} />
-            <Select className="ledger-loss-filter" aria-label="22%广告净利是否亏损" value={filterAd22NetLoss} options={getLossFilterOptions('22%广告净利')} onChange={(value: LossFilterValue) => { setFilterAd22NetLoss(value); setPage(1) }} />
-            <Select className="ledger-loss-filter" aria-label="30%广告净利是否亏损" value={filterAd30NetLoss} options={getLossFilterOptions('30%广告净利')} onChange={(value: LossFilterValue) => { setFilterAd30NetLoss(value); setPage(1) }} />
+            <ProfitRangeFilter label="净利" minimum={filterNetProfitMin} maximum={filterNetProfitMax} onMinimumChange={(value) => { setFilterNetProfitMin(value); setPage(1) }} onMaximumChange={(value) => { setFilterNetProfitMax(value); setPage(1) }} />
+            <ProfitRangeFilter label="22%广告净利" minimum={filterAd22NetMin} maximum={filterAd22NetMax} onMinimumChange={(value) => { setFilterAd22NetMin(value); setPage(1) }} onMaximumChange={(value) => { setFilterAd22NetMax(value); setPage(1) }} />
+            <ProfitRangeFilter label="30%广告净利" minimum={filterAd30NetMin} maximum={filterAd30NetMax} onMinimumChange={(value) => { setFilterAd30NetMin(value); setPage(1) }} onMaximumChange={(value) => { setFilterAd30NetMax(value); setPage(1) }} />
             <Button onClick={resetFilters}>清除筛选</Button>
           </Space>
+          {hasInvalidProfitRange && <Typography.Text type="danger" className="ledger-filter-error">利润范围的最低值不能大于最高值。</Typography.Text>}
         </div>
         <div className="table-wrap">
           <Table rowKey="id" columns={columns} dataSource={items} loading={loading} rowSelection={rowSelection} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂时没有台账数据" /> }} scroll={{ x: 2240 }} pagination={false} />

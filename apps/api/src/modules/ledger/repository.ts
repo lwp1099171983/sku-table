@@ -57,12 +57,13 @@ function toPublicLedgerItem<T extends { id: number; deletedAt: Date | null }>(ro
   }
 }
 
-// 台账金额保留 Excel 原始文本；仅对可解析且数值小于 0 的内容匹配，避免非法文本参与类型转换。
-function createNegativeAmountFilter(column: SQLWrapper): SQL {
+// 台账金额保留 Excel 原始文本；仅对可解析数值做范围比较，异常文本不参与筛选。
+function createAmountRangeFilter(column: SQLWrapper, minimum?: number, maximum?: number): SQL {
   const normalized = sql<string>`regexp_replace(coalesce(${column}, ''), '[￥¥,，[:space:]]', '', 'g')`
   return sql`case
-    when ${normalized} ~ '^-([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$'
-    then cast(${normalized} as numeric) < 0
+    when ${normalized} ~ '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$'
+    then ${minimum === undefined ? sql`true` : sql`cast(${normalized} as numeric) >= ${minimum}`}
+      and ${maximum === undefined ? sql`true` : sql`cast(${normalized} as numeric) <= ${maximum}`}
     else false
   end`
 }
@@ -357,9 +358,15 @@ export async function listLedgerItems(
     if (keywordClause) filters.push(keywordClause)
   }
   if (query.sku) filters.push(ilike(ledgerItems.sku, `%${query.sku}%`))
-  if (query.netProfitLoss) filters.push(createNegativeAmountFilter(ledgerItems.netProfit))
-  if (query.ad22NetLoss) filters.push(createNegativeAmountFilter(ledgerItems.ad22Net))
-  if (query.ad30NetLoss) filters.push(createNegativeAmountFilter(ledgerItems.ad30Net))
+  if (query.netProfitMin !== undefined || query.netProfitMax !== undefined) {
+    filters.push(createAmountRangeFilter(ledgerItems.netProfit, query.netProfitMin, query.netProfitMax))
+  }
+  if (query.ad22NetMin !== undefined || query.ad22NetMax !== undefined) {
+    filters.push(createAmountRangeFilter(ledgerItems.ad22Net, query.ad22NetMin, query.ad22NetMax))
+  }
+  if (query.ad30NetMin !== undefined || query.ad30NetMax !== undefined) {
+    filters.push(createAmountRangeFilter(ledgerItems.ad30Net, query.ad30NetMin, query.ad30NetMax))
+  }
   const where = filters.length > 0 ? and(...filters) : undefined
 
   const [{ total }] = await db.select({ total: count(ledgerItems.id) })

@@ -6,8 +6,13 @@
 .ledger-upload-block { margin-top: 8px; }
 .ledger-month-range-picker { width: 280px; }
 .ledger-filter-input { width: 220px; }
-.ledger-loss-filter { width: 164px; }
+.ledger-profit-range { display: grid; grid-template-columns: max-content 86px max-content 86px; align-items: center; gap: 6px; }
+.ledger-profit-range-label { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ledger-profit-range .ant-input-number { width: 86px; }
+.ledger-profit-range-separator { color: var(--ant-color-text-tertiary); font-size: 12px; }
+.ledger-filter-error { flex-basis: 100%; }
 .ledger-ellipsis-cell { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledger-negative-profit { color: var(--ant-color-error); font-weight: 600; }
 .ledger-weight-display,
 .ledger-weight-editor,
 .ledger-purchase-display,
